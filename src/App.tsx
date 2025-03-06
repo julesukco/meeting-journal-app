@@ -131,6 +131,25 @@ function App() {
     return processedContent;
   }, [actionItems, selectedMeeting]);
 
+  const handleReorderMeeting = (meetingId: string, direction: 'up' | 'down') => {
+    const meetingIndex = meetings.findIndex(m => m.id === meetingId);
+    if (meetingIndex === -1) return;
+    
+    const newMeetings = [...meetings];
+    
+    if (direction === 'up' && meetingIndex > 0) {
+      // Swap with the previous meeting
+      [newMeetings[meetingIndex], newMeetings[meetingIndex - 1]] = 
+      [newMeetings[meetingIndex - 1], newMeetings[meetingIndex]];
+    } else if (direction === 'down' && meetingIndex < meetings.length - 1) {
+      // Swap with the next meeting
+      [newMeetings[meetingIndex], newMeetings[meetingIndex + 1]] = 
+      [newMeetings[meetingIndex + 1], newMeetings[meetingIndex]];
+    }
+    
+    setMeetings(newMeetings);
+  };
+
   return (
     <div className="flex h-screen bg-white">
       <MeetingList
@@ -138,6 +157,7 @@ function App() {
         selectedMeeting={selectedMeeting}
         onSelectMeeting={setSelectedMeeting}
         onNewMeeting={handleNewMeeting}
+        onReorderMeeting={handleReorderMeeting}
       />
       <Editor 
         meeting={selectedMeeting} 

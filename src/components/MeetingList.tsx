@@ -1,5 +1,5 @@
 import React from 'react';
-import { CalendarDays, Plus } from 'lucide-react';
+import { CalendarDays, Plus, ArrowUp, ArrowDown } from 'lucide-react';
 import { Meeting } from '../types';
 
 interface MeetingListProps {
@@ -7,6 +7,7 @@ interface MeetingListProps {
   selectedMeeting: Meeting | null;
   onSelectMeeting: (meeting: Meeting) => void;
   onNewMeeting: () => void;
+  onReorderMeeting?: (meetingId: string, direction: 'up' | 'down') => void;
 }
 
 export function MeetingList({
@@ -14,6 +15,7 @@ export function MeetingList({
   selectedMeeting,
   onSelectMeeting,
   onNewMeeting,
+  onReorderMeeting,
 }: MeetingListProps) {
   return (
     <div className="w-64 bg-gray-50 border-r border-gray-200 p-4 flex flex-col h-screen">
@@ -28,17 +30,54 @@ export function MeetingList({
         </button>
       </div>
       <div className="overflow-y-auto flex-1">
-        {meetings.map((meeting) => (
+        {meetings.map((meeting, index) => (
           <div
             key={meeting.id}
-            onClick={() => onSelectMeeting(meeting)}
             className={`p-3 rounded-lg mb-2 cursor-pointer ${
               selectedMeeting?.id === meeting.id
                 ? 'bg-blue-100 border-blue-200'
                 : 'hover:bg-gray-100'
             }`}
           >
-            <div className="font-medium text-gray-800 mb-1">{meeting.title}</div>
+            <div className="flex justify-between items-center">
+              <div 
+                className="font-medium text-gray-800 mb-1 flex-1 truncate mr-2"
+                onClick={() => onSelectMeeting(meeting)}
+              >
+                {meeting.title}
+              </div>
+              
+              {onReorderMeeting && (
+                <div className="flex flex-col ml-1 shrink-0">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onReorderMeeting(meeting.id, 'up');
+                    }}
+                    disabled={index === 0}
+                    className={`p-0.5 rounded ${
+                      index === 0 ? 'text-gray-300 cursor-not-allowed' : 'text-gray-500 hover:bg-gray-200'
+                    }`}
+                    title="Move up"
+                  >
+                    <ArrowUp className="w-3 h-3" />
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onReorderMeeting(meeting.id, 'down');
+                    }}
+                    disabled={index === meetings.length - 1}
+                    className={`p-0.5 rounded ${
+                      index === meetings.length - 1 ? 'text-gray-300 cursor-not-allowed' : 'text-gray-500 hover:bg-gray-200'
+                    }`}
+                    title="Move down"
+                  >
+                    <ArrowDown className="w-3 h-3" />
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         ))}
       </div>

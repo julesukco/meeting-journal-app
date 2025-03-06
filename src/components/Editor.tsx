@@ -23,16 +23,22 @@ export const Editor: React.FC<EditorProps> = ({
 }) => {
   const [content, setContent] = useState('');
   const quillRef = React.useRef<ReactQuill>(null);
+  const [editorReady, setEditorReady] = useState(false);
 
   useEffect(() => {
-    if (meeting) {
+    // Set editor as ready after component mounts
+    setEditorReady(true);
+  }, []);
+
+  useEffect(() => {
+    if (meeting && editorReady) {
       // Use the processed content that applies strikethrough to completed items
       const processedContent = processContent(meeting.content);
       setContent(processedContent);
-    } else {
+    } else if (!meeting) {
       setContent('');
     }
-  }, [meeting, processContent]);
+  }, [meeting, processContent, editorReady]);
 
   const handleChange = (value: string) => {
     setContent(value);
@@ -103,6 +109,46 @@ export const Editor: React.FC<EditorProps> = ({
     };
   }, []);
 
+  // Configure Quill to preserve all attributes on images
+  useEffect(() => {
+    if (quillRef.current) {
+      const Quill = ReactQuill.Quill;
+      const Image = Quill.import('formats/image');
+      
+      // Override the image format to preserve all attributes
+      class CustomImage extends Image {
+        static formats(domNode: HTMLElement) {
+          // Preserve all attributes that might be set by the resize module
+          const formats: Record<string, string> = {};
+          if (domNode.hasAttribute('width')) {
+            formats['width'] = domNode.getAttribute('width') || '';
+          }
+          if (domNode.hasAttribute('height')) {
+            formats['height'] = domNode.getAttribute('height') || '';
+          }
+          if (domNode.hasAttribute('style')) {
+            formats['style'] = domNode.getAttribute('style') || '';
+          }
+          return formats;
+        }
+        
+        format(name: string, value: string) {
+          if (name === 'width' || name === 'height' || name === 'style') {
+            if (value) {
+              this.domNode.setAttribute(name, value);
+            } else {
+              this.domNode.removeAttribute(name);
+            }
+          } else {
+            super.format(name, value);
+          }
+        }
+      }
+      
+      Quill.register(CustomImage, true);
+    }
+  }, [quillRef.current]);
+
   // Quill editor modules/formats
   const modules = {
     toolbar: {
@@ -118,14 +164,25 @@ export const Editor: React.FC<EditorProps> = ({
     },
     imageResize: {
       parchment: ReactQuill.Quill.import('parchment'),
-      modules: ['Resize', 'DisplaySize']
+      modules: ['Resize', 'DisplaySize'],
+      displaySize: true,
+      // Make sure all attributes are preserved
+      attributors: {
+        width: 'width',
+        height: 'height',
+        style: 'style'
+      }
+    },
+    clipboard: {
+      matchVisual: false // Helps with preserving styles on paste
     }
   };
   
   const formats = [
     'bold', 'italic', 'underline', 'strike',
     'list', 'bullet',
-    'link', 'image'
+    'link', 'image',
+    'width', 'height', 'style' // Add these formats to preserve image sizing
   ];
 
   if (!meeting) {
@@ -156,6 +213,7 @@ export const Editor: React.FC<EditorProps> = ({
           modules={modules}
           formats={formats}
           className="h-full"
+          preserveWhitespace={true}
         />
       </div>
       
