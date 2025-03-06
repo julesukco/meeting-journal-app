@@ -4,9 +4,10 @@ import { Meeting } from '../types';
 interface EditorProps {
   meeting: Meeting | null;
   onUpdate: (meeting: Meeting) => void;
+  processContent: (content: string) => string;
 }
 
-export function Editor({ meeting, onUpdate }: EditorProps) {
+export function Editor({ meeting, onUpdate, processContent }: EditorProps) {
   const handleContentChange = useCallback(
     (e: React.ChangeEvent<HTMLTextAreaElement>) => {
       if (!meeting) return;
@@ -22,6 +23,9 @@ export function Editor({ meeting, onUpdate }: EditorProps) {
     },
     [meeting, onUpdate]
   );
+
+  // When displaying the content, use processContent
+  const displayContent = meeting ? processContent(meeting.content) : '';
 
   if (!meeting) {
     return (
@@ -41,7 +45,7 @@ export function Editor({ meeting, onUpdate }: EditorProps) {
         placeholder="Meeting Title"
       />
       <textarea
-        value={meeting.content}
+        value={displayContent}
         onChange={handleContentChange}
         className="flex-1 resize-none bg-transparent border-none focus:outline-none"
         placeholder="Start taking notes... Use 'AI: ' to mark action items"
