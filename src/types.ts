@@ -13,4 +13,5 @@ export interface ActionItem {
   meetingId: string;
   series?: string;
   createdAt: string;
+  completedAt?: string;
 }

@@ -41,9 +41,10 @@ function App() {
     );
     setSelectedMeeting(updatedMeeting);
 
-    // Extract action items from content
+    // Extract action items from HTML content
     const content = updatedMeeting.content;
-    const aiRegex = /AI:\s*([^\n]+)/g;
+    // This regex looks for "AI:" followed by text, even within HTML tags
+    const aiRegex = /AI:\s*([^<]+)/g;
     const matches = Array.from(content.matchAll(aiRegex));
 
     // Create new action items while preserving completed state
@@ -83,17 +84,23 @@ function App() {
     });
   }, []);
 
-  const handleToggleActionItem = useCallback((id: string) => {
+  const toggleActionItem = useCallback((id: string) => {
     setActionItems((prev) =>
-      prev.map((item) =>
-        item.id === id ? { ...item, completed: !item.completed } : item
-      )
+      prev.map((item) => {
+        if (item.id === id) {
+          return {
+            ...item,
+            completed: !item.completed,
+            // Add or remove the completedAt date based on the completed state
+            completedAt: !item.completed ? new Date().toISOString() : undefined
+          };
+        }
+        return item;
+      })
     );
   }, []);
 
-  // For the strikethrough functionality, we need to modify how the content is displayed
-  // in the Editor component. You'll need to update the Editor component to process
-  // the content and add strikethrough styling for completed action items.
+  // Update the processCompletedItems function to include the completion date
   const processCompletedItems = useCallback((content: string) => {
     if (!selectedMeeting) return content;
     
@@ -103,8 +110,22 @@ function App() {
 
     let processedContent = content;
     completedItems.forEach((item) => {
-      const regex = new RegExp(`AI:\\s*(${item.text})`, 'g');
-      processedContent = processedContent.replace(regex, 'Done: $1');
+      // Escape special regex characters in the item text
+      const escapedText = item.text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      
+      // Create a regex that can match the text in HTML content
+      const regex = new RegExp(`(AI:\\s*)(${escapedText})`, 'g');
+      
+      // Get the completion date - either from the item or use current date
+      const completionDate = item.completedAt 
+        ? new Date(item.completedAt) 
+        : new Date();
+      
+      // Format the date as MM/DD/YY
+      const formattedDate = `${completionDate.getMonth() + 1}/${completionDate.getDate()}/${String(completionDate.getFullYear()).slice(2)}`;
+      
+      // Replace with "Done [date]:"
+      processedContent = processedContent.replace(regex, `Done ${formattedDate}: $2`);
     });
 
     return processedContent;
@@ -127,7 +148,7 @@ function App() {
         items={actionItems.filter(item => 
           item.meetingId === selectedMeeting?.id && !item.completed
         )}
-        onToggleComplete={handleToggleActionItem}
+        onToggleComplete={toggleActionItem}
       />
     </div>
   );
