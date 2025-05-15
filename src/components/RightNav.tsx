@@ -22,6 +22,7 @@ export const RightNav: React.FC<RightNavProps> = ({
     const saved = localStorage.getItem(REMINDERS_KEY);
     return saved ? JSON.parse(saved) : [];
   });
+  const [showCompleted, setShowCompleted] = useState(false);
 
   // Save reminders whenever they change
   useEffect(() => {
@@ -42,8 +43,20 @@ export const RightNav: React.FC<RightNavProps> = ({
 
   return (
     <div className="w-64 bg-white border-l border-gray-200 flex flex-col h-screen">
+      <div className="flex items-center justify-between px-4 pt-4">
+        <span className="font-semibold text-lg">Action Items</span>
+        <label className="flex items-center gap-1 text-xs cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={showCompleted}
+            onChange={() => setShowCompleted((v) => !v)}
+            className="accent-blue-500"
+          />
+          Show completed
+        </label>
+      </div>
       <ActionItems
-        items={actionItems}
+        items={showCompleted ? actionItems : actionItems.filter(item => !item.completed)}
         onToggleComplete={onToggleActionItem}
       />
       <Reminders
