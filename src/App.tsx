@@ -265,7 +265,7 @@ function App() {
               {isRightNavVisible && (
                 <div className="h-screen overflow-y-auto">
                   <RightNav
-                    actionItems={selectedMeeting ? actionItems.filter(item => item.meetingId === selectedMeeting.id) : []}
+                    actionItems={selectedMeeting ? actionItems.filter(item => item.meetingId === selectedMeeting.id && !item.completed) : []}
                     onToggleActionItem={toggleActionItem}
                     onExport={handleExport}
                     onImport={handleImport}
