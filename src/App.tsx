@@ -8,6 +8,7 @@ import { exportMeetings, importMeetings } from './services/storage';
 import { RightNav } from './components/RightNav';
 import { SearchDialog } from './components/SearchDialog';
 import { MeetingListScreen } from './screens/MeetingListScreen';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 function App() {
   const [meetings, setMeetings] = useState<Meeting[]>(() => {
@@ -233,6 +234,26 @@ function App() {
                 />
               )}
               <div className="flex-1 flex flex-col h-screen">
+                {/* Header row with nav toggles and meeting title */}
+                <div className="flex items-center justify-between px-2 py-2 border-b border-gray-200 bg-white">
+                  <button
+                    onClick={() => setIsLeftNavVisible((v) => !v)}
+                    className="bg-white border border-gray-300 rounded-full p-1 shadow hover:bg-gray-100"
+                    title={isLeftNavVisible ? 'Hide left nav' : 'Show left nav'}
+                  >
+                    {isLeftNavVisible ? <ChevronLeft className="w-5 h-5" /> : <ChevronRight className="w-5 h-5" />}
+                  </button>
+                  <div className="flex-1 text-center text-2xl font-bold truncate px-2">
+                    {selectedMeeting ? selectedMeeting.title : ''}
+                  </div>
+                  <button
+                    onClick={() => setIsRightNavVisible((v) => !v)}
+                    className="bg-white border border-gray-300 rounded-full p-1 shadow hover:bg-gray-100"
+                    title={isRightNavVisible ? 'Hide right nav' : 'Show right nav'}
+                  >
+                    {isRightNavVisible ? <ChevronRight className="w-5 h-5" /> : <ChevronLeft className="w-5 h-5" />}
+                  </button>
+                </div>
                 <Editor
                   meeting={selectedMeeting}
                   onUpdateMeeting={handleUpdateMeeting}
