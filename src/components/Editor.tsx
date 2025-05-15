@@ -298,7 +298,7 @@ export const Editor: React.FC<EditorProps> = ({
           type="text"
           value={meeting.title}
           onChange={(e) => onUpdate({ ...meeting, title: e.target.value })}
-          className="w-full text-2xl font-bold border-b border-gray-300 pb-2 focus:outline-none ml-12"
+          className="w-full text-2xl font-bold border-b border-gray-300 pb-2 focus:outline-none ml-12 mr-16"
         />
       </div>
       
