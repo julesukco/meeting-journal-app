@@ -19,7 +19,24 @@ export function MeetingList({
   onReorderMeeting,
   onUpdateMeeting,
 }: MeetingListProps) {
-  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set(['']));
+  const EXPANDED_KEY = 'expandedMeetingGroups';
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(() => {
+    const saved = localStorage.getItem(EXPANDED_KEY);
+    if (saved) {
+      try {
+        return new Set(JSON.parse(saved));
+      } catch {
+        return new Set(['']);
+      }
+    }
+    return new Set(['']);
+  });
+
+  // Persist expandedGroups to localStorage whenever it changes
+  useEffect(() => {
+    localStorage.setItem(EXPANDED_KEY, JSON.stringify(Array.from(expandedGroups)));
+  }, [expandedGroups]);
+
   const [newGroupName, setNewGroupName] = useState('');
   const [showNewGroupInput, setShowNewGroupInput] = useState(false);
   const GROUPS_KEY = 'meetingGroups';
