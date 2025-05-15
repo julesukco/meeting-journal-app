@@ -44,6 +44,22 @@ export const Editor: React.FC<EditorProps> = ({
       // Use the processed content that applies strikethrough to completed items
       const processedContent = processContent(meeting.content);
       setContent(processedContent);
+
+      // After content is set, move cursor to end and scroll to bottom
+      setTimeout(() => {
+        const quill = quillRef.current?.getEditor();
+        if (quill) {
+          // Get the length of the content
+          const length = quill.getLength();
+          // Set cursor position to the end
+          quill.setSelection(length, 0);
+          // Scroll to the bottom
+          const editorElement = quillRef.current?.getEditor().root;
+          if (editorElement) {
+            editorElement.scrollTop = editorElement.scrollHeight;
+          }
+        }
+      }, 0);
     } else if (!meeting) {
       setContent('');
     }
