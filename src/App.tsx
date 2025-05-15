@@ -3,6 +3,8 @@ import { Meeting, ActionItem } from './types';
 import { MeetingList } from './components/MeetingList';
 import { Editor } from './components/Editor';
 import { ActionItems } from './components/ActionItems';
+import { exportMeetings, importMeetings } from './services/storage';
+import { RightNav } from './components/RightNav';
 
 function App() {
   const [meetings, setMeetings] = useState<Meeting[]>(() => {
@@ -15,6 +17,9 @@ function App() {
     const saved = localStorage.getItem('actionItems');
     return saved ? JSON.parse(saved) : [];
   });
+
+  const [isLeftNavVisible, setIsLeftNavVisible] = useState(true);
+  const [isRightNavVisible, setIsRightNavVisible] = useState(true);
 
   useEffect(() => {
     localStorage.setItem('meetings', JSON.stringify(meetings));
@@ -150,25 +155,82 @@ function App() {
     setMeetings(newMeetings);
   };
 
+  const handleExport = async () => {
+    try {
+      const jsonString = await exportMeetings();
+      const blob = new Blob([jsonString], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'meetings.json';
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      alert('Failed to export meetings');
+    }
+  };
+
+  const handleImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    try {
+      const file = event.target.files?.[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        try {
+          const content = e.target?.result as string;
+          await importMeetings(content);
+          alert('Meetings imported successfully');
+          // Optionally reload meetings here if needed
+        } catch {
+          alert('Failed to import meetings');
+        }
+      };
+      reader.readAsText(file);
+    } catch {
+      alert('Failed to import meetings');
+    }
+  };
+
   return (
-    <div className="flex h-screen bg-white">
-      <MeetingList
-        meetings={meetings}
-        selectedMeeting={selectedMeeting}
-        onSelectMeeting={setSelectedMeeting}
-        onNewMeeting={handleNewMeeting}
-        onReorderMeeting={handleReorderMeeting}
-      />
-      <Editor 
-        meeting={selectedMeeting} 
-        onUpdate={handleUpdateMeeting}
-        processContent={processCompletedItems}
-      />
-      <ActionItems
-        items={actionItems.filter(item => 
+    <div className="flex h-screen">
+      {/* Left Navigation */}
+      <div className={`transition-all duration-300 overflow-hidden bg-white border-r border-gray-200 ${isLeftNavVisible ? 'w-64' : 'w-0'}`}>
+        {isLeftNavVisible && (
+          <MeetingList
+            meetings={meetings}
+            selectedMeeting={selectedMeeting}
+            onSelectMeeting={setSelectedMeeting}
+            onNewMeeting={handleNewMeeting}
+            onReorderMeeting={handleReorderMeeting}
+          />
+        )}
+      </div>
+
+      {/* Main Content */}
+      <div className="flex-1">
+        <Editor
+          meeting={selectedMeeting}
+          onUpdate={handleUpdateMeeting}
+          processContent={processCompletedItems}
+          onToggleLeftNav={() => setIsLeftNavVisible(!isLeftNavVisible)}
+          onToggleRightNav={() => setIsRightNavVisible(!isRightNavVisible)}
+          isLeftNavVisible={isLeftNavVisible}
+          isRightNavVisible={isRightNavVisible}
+        />
+      </div>
+
+      {/* Right Navigation - render RightNav directly as the nav container */}
+      <RightNav
+        isVisible={isRightNavVisible}
+        actionItems={actionItems.filter(item =>
           item.meetingId === selectedMeeting?.id && !item.completed
         )}
+        selectedMeetingId={selectedMeeting?.id}
         onToggleComplete={toggleActionItem}
+        onMeetingsImported={() => {
+          const saved = localStorage.getItem('meetings');
+          setMeetings(saved ? JSON.parse(saved) : []);
+        }}
       />
     </div>
   );

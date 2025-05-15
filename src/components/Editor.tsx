@@ -15,12 +15,20 @@ interface EditorProps {
   meeting: Meeting | null;
   onUpdate: (meeting: Meeting) => void;
   processContent: (content: string) => string;
+  onToggleLeftNav?: () => void;
+  onToggleRightNav?: () => void;
+  isLeftNavVisible?: boolean;
+  isRightNavVisible?: boolean;
 }
 
 export const Editor: React.FC<EditorProps> = ({ 
   meeting, 
   onUpdate,
-  processContent 
+  processContent,
+  onToggleLeftNav,
+  onToggleRightNav,
+  isLeftNavVisible = true,
+  isRightNavVisible = true
 }) => {
   const [content, setContent] = useState('');
   const quillRef = React.useRef<ReactQuill>(null);
@@ -243,12 +251,54 @@ export const Editor: React.FC<EditorProps> = ({
 
   return (
     <div className="flex-1 p-6 flex flex-col relative h-full">
+      <div className="absolute top-4 left-4 z-50">
+        <button
+          onClick={onToggleLeftNav}
+          className="p-2 bg-white rounded-lg shadow-lg hover:bg-gray-50 transition-colors"
+          title={isLeftNavVisible ? "Hide left panel" : "Show left panel"}
+        >
+          <svg 
+            className="w-5 h-5 text-gray-600" 
+            fill="none" 
+            stroke="currentColor" 
+            viewBox="0 0 24 24"
+          >
+            {isLeftNavVisible ? (
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
+            ) : (
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 5l7 7-7 7M5 5l7 7-7 7" />
+            )}
+          </svg>
+        </button>
+      </div>
+
+      <div className="absolute top-4 right-4 z-50">
+        <button
+          onClick={onToggleRightNav}
+          className="p-2 bg-white rounded-lg shadow-lg hover:bg-gray-50 transition-colors"
+          title={isRightNavVisible ? "Hide right panel" : "Show right panel"}
+        >
+          <svg 
+            className="w-5 h-5 text-gray-600" 
+            fill="none" 
+            stroke="currentColor" 
+            viewBox="0 0 24 24"
+          >
+            {isRightNavVisible ? (
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 5l7 7-7 7M5 5l7 7-7 7" />
+            ) : (
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
+            )}
+          </svg>
+        </button>
+      </div>
+
       <div className="mb-4">
         <input
           type="text"
           value={meeting.title}
           onChange={(e) => onUpdate({ ...meeting, title: e.target.value })}
-          className="w-full text-2xl font-bold border-b border-gray-300 pb-2 focus:outline-none"
+          className="w-full text-2xl font-bold border-b border-gray-300 pb-2 focus:outline-none ml-12"
         />
       </div>
       
