@@ -10,7 +10,7 @@ interface ActionItemsProps {
 export function ActionItems({ items, onToggleComplete }: ActionItemsProps) {
   return (
     <div className="bg-gray-50 border-l border-gray-200 w-64 p-4 h-screen overflow-y-auto">
-      <h2 className="text-lg font-semibold text-gray-700 mb-4">Action Items</h2>
+      <h2 className="text-lg font-semibold text-gray-700 mb-4">&nbsp;&nbsp;Action Items</h2>
       {items.map((item) => (
         <div
           key={item.id}
