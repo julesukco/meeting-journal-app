@@ -49,14 +49,18 @@ export function MeetingList({
     return acc;
   }, {} as Record<string, Meeting[]>);
 
-  // Combine all groups (from state and from meetings)
-  const allGroups = Array.from(new Set(['', ...groups, ...Object.keys(groupedMeetings)]));
-  // Sort groups alphabetically, with ungrouped meetings first
-  const sortedGroups = allGroups.sort((a, b) => {
-    if (a === '') return -1;
-    if (b === '') return 1;
-    return a.localeCompare(b);
-  });
+  // Move group up or down
+  const moveGroup = (group: string, direction: 'up' | 'down') => {
+    const idx = groups.indexOf(group);
+    if (idx === -1) return;
+    let newGroups = [...groups];
+    if (direction === 'up' && idx > 0) {
+      [newGroups[idx], newGroups[idx - 1]] = [newGroups[idx - 1], newGroups[idx]];
+    } else if (direction === 'down' && idx < newGroups.length - 1) {
+      [newGroups[idx], newGroups[idx + 1]] = [newGroups[idx + 1], newGroups[idx]];
+    }
+    setGroups(newGroups);
+  };
 
   const toggleGroup = (group: string) => {
     setExpandedGroups(prev => {
@@ -81,10 +85,10 @@ export function MeetingList({
 
   // Helper to get the previous and next group
   const getAdjacentGroups = (group: string) => {
-    const idx = sortedGroups.indexOf(group);
+    const idx = groups.indexOf(group);
     return {
-      prev: idx > 0 ? sortedGroups[idx - 1] : null,
-      next: idx < sortedGroups.length - 1 ? sortedGroups[idx + 1] : null,
+      prev: idx > 0 ? groups[idx - 1] : null,
+      next: idx < groups.length - 1 ? groups[idx + 1] : null,
     };
   };
 
@@ -111,6 +115,10 @@ export function MeetingList({
       onReorderMeeting(meeting.id, direction);
     }
   };
+
+  // Render ungrouped first, then groups in the order of the groups array
+  const allGroups = [''].concat(groups);
+  const sortedGroups = allGroups;
 
   return (
     <div className="w-64 bg-gray-50 border-r border-gray-200 flex flex-col h-screen">
@@ -175,7 +183,24 @@ export function MeetingList({
                 ) : (
                   <ChevronRight className="w-4 h-4 text-blue-700" />
                 )}
-                <span className="ml-2 text-base font-bold text-blue-800 tracking-wide uppercase">{group}</span>
+                <span className="ml-2 text-base font-bold text-blue-800 tracking-wide uppercase flex-1">{group}</span>
+                {/* Group move up/down buttons */}
+                <button
+                  onClick={e => { e.stopPropagation(); moveGroup(group, 'up'); }}
+                  disabled={groups.indexOf(group) === 0}
+                  className={`p-1 rounded ${groups.indexOf(group) === 0 ? 'text-gray-300 cursor-not-allowed' : 'text-blue-700 hover:bg-blue-200'}`}
+                  title="Move group up"
+                >
+                  <ArrowUp className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={e => { e.stopPropagation(); moveGroup(group, 'down'); }}
+                  disabled={groups.indexOf(group) === groups.length - 1}
+                  className={`p-1 rounded ${groups.indexOf(group) === groups.length - 1 ? 'text-gray-300 cursor-not-allowed' : 'text-blue-700 hover:bg-blue-200'}`}
+                  title="Move group down"
+                >
+                  <ArrowDown className="w-4 h-4" />
+                </button>
               </div>
             )}
             {expandedGroups.has(group) && (groupedMeetings[group] || []).map((meeting, index) => (
