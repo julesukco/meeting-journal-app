@@ -241,7 +241,7 @@ function App() {
               </div>
               {isRightNavVisible && (
                 <RightNav
-                  actionItems={actionItems}
+                  actionItems={selectedMeeting ? actionItems.filter(item => item.meetingId === selectedMeeting.id) : []}
                   onToggleActionItem={toggleActionItem}
                   onExport={handleExport}
                   onImport={handleImport}
