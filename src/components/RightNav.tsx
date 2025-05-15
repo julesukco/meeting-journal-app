@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { ActionItem } from '../types';
 import { ActionItems } from './ActionItems';
+import { Reminders } from './Reminders';
 import { exportMeetings, importMeetings } from '../services/storage';
 
 interface RightNavProps {
@@ -11,6 +12,11 @@ interface RightNavProps {
   onMeetingsImported?: () => void;
 }
 
+interface Reminder {
+  id: string;
+  text: string;
+}
+
 export const RightNav: React.FC<RightNavProps> = ({
   isVisible,
   actionItems,
@@ -18,6 +24,27 @@ export const RightNav: React.FC<RightNavProps> = ({
   onToggleComplete,
   onMeetingsImported,
 }) => {
+  const [reminders, setReminders] = useState<Reminder[]>(() => {
+    const saved = localStorage.getItem('reminders');
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  useEffect(() => {
+    localStorage.setItem('reminders', JSON.stringify(reminders));
+  }, [reminders]);
+
+  const handleAddReminder = (text: string) => {
+    const newReminder: Reminder = {
+      id: Date.now().toString(),
+      text,
+    };
+    setReminders((prev) => [...prev, newReminder]);
+  };
+
+  const handleDeleteReminder = (id: string) => {
+    setReminders((prev) => prev.filter((reminder) => reminder.id !== id));
+  };
+
   const handleExport = async () => {
     try {
       const jsonString = await exportMeetings();
@@ -66,6 +93,11 @@ export const RightNav: React.FC<RightNavProps> = ({
           <ActionItems
             items={actionItems}
             onToggleComplete={onToggleComplete}
+          />
+          <Reminders
+            reminders={reminders}
+            onAddReminder={handleAddReminder}
+            onDeleteReminder={handleDeleteReminder}
           />
           <div className="flex space-x-2 p-4 mt-auto">
             <button
