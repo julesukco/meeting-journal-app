@@ -17,20 +17,15 @@ export const RightNav: React.FC<RightNavProps> = ({
   onExport,
   onImport,
 }) => {
-  const [reminders, setReminders] = useState<Reminder[]>([]);
-
-  // Load reminders on component mount
-  useEffect(() => {
-    const loadReminders = async () => {
-      const loadedReminders = await getReminders();
-      setReminders(loadedReminders);
-    };
-    loadReminders();
-  }, []);
+  const REMINDERS_KEY = 'reminders';
+  const [reminders, setReminders] = useState<Reminder[]>(() => {
+    const saved = localStorage.getItem(REMINDERS_KEY);
+    return saved ? JSON.parse(saved) : [];
+  });
 
   // Save reminders whenever they change
   useEffect(() => {
-    localStorage.setItem('reminders', JSON.stringify(reminders));
+    localStorage.setItem(REMINDERS_KEY, JSON.stringify(reminders));
   }, [reminders]);
 
   const handleAddReminder = (text: string) => {
