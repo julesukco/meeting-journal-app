@@ -262,7 +262,7 @@ export const Editor: React.FC<EditorProps> = ({
 
   return (
     <div className="flex-1 flex flex-col h-screen">
-      {meeting && (
+      {meeting ? (
         <div className="flex-1 flex flex-col">
           <div className="flex-1 overflow-y-auto">
             <ReactQuill
@@ -275,6 +275,10 @@ export const Editor: React.FC<EditorProps> = ({
               theme="snow"
             />
           </div>
+        </div>
+      ) : (
+        <div className="flex-1 flex items-center justify-center text-gray-400 text-lg">
+          Select a meeting to view or edit
         </div>
       )}
     </div>
