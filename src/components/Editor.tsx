@@ -4,6 +4,7 @@ import 'react-quill/dist/quill.snow.css'; // Import styles
 import { Meeting } from '../types';
 import ImageResize from 'quill-image-resize-module-react';
 import { getMeetings, exportMeetings, importMeetings } from '../services/storage';
+import { Delta } from 'quill';
 
 // Register the image resize module with Quill
 if (typeof window !== 'undefined') {
@@ -215,7 +216,9 @@ export const Editor: React.FC<EditorProps> = ({
     'list', 'bullet',
     'link', 'image',
     'width', 'height', 'style', // Add these formats to preserve image sizing
-    'white-space' // Add this to preserve whitespace
+    'white-space', // Add this to preserve whitespace
+    'header', // Add header format
+    'blockquote' // Add blockquote format
   ];
 
   const handleExport = async () => {

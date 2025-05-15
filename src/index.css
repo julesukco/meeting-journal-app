@@ -17,11 +17,22 @@
   overflow-y: auto;
   white-space: pre-wrap !important;
   word-wrap: break-word;
+  line-height: 1.5;
+  padding: 1rem;
 }
 
 .ql-editor p {
-  white-space: pre-wrap !important;
   margin-bottom: 1em;
+  min-height: 1.5em;
+}
+
+.ql-editor p:empty {
+  min-height: 1.5em;
+  display: block;
+}
+
+.ql-editor p + p {
+  margin-top: 1em;
 }
 
 .ql-editor br {
