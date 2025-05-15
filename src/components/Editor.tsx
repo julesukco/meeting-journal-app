@@ -264,14 +264,6 @@ export const Editor: React.FC<EditorProps> = ({
     <div className="flex-1 flex flex-col h-screen">
       {meeting && (
         <div className="flex-1 flex flex-col">
-          <div className="p-4 border-b border-gray-200">
-            <input
-              type="text"
-              value={meeting.title}
-              onChange={(e) => onUpdateMeeting({ ...meeting, title: e.target.value })}
-              className="w-full text-2xl font-bold border-b border-gray-300 pb-2 focus:outline-none"
-            />
-          </div>
           <div className="flex-1 overflow-y-auto">
             <ReactQuill
               ref={quillRef}
