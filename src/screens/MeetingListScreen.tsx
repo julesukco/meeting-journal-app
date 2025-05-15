@@ -1,126 +1,59 @@
-import { getMeetings, addMeeting, deleteMeeting, Meeting } from '../services/storage';
 import React, { useState, useEffect } from 'react';
-import { View, ActivityIndicator, Alert, Share, Platform, Button, StyleSheet, Text } from 'react-native';
-import * as FileSystem from 'expo-file-system';
-import * as DocumentPicker from 'expo-document-picker';
-import { exportMeetings, importMeetings } from '../services/storage';
+import { Meeting } from '../types';
+import { getMeetings } from '../services/storage';
+import { SearchDialog } from '../components/SearchDialog';
 
-export default function MeetingListScreen() {
+export const MeetingListScreen: React.FC = () => {
   const [meetings, setMeetings] = useState<Meeting[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [showSearch, setShowSearch] = useState(false);
 
   useEffect(() => {
     loadMeetings();
   }, []);
 
   const loadMeetings = async () => {
-    try {
-      const storedMeetings = await getMeetings();
-      setMeetings(storedMeetings);
-    } catch (error) {
-      console.error('Error loading meetings:', error);
-      Alert.alert('Error', 'Failed to load meetings');
-    } finally {
-      setIsLoading(false);
-    }
+    const storedMeetings = await getMeetings();
+    setMeetings(storedMeetings);
   };
 
-  const handleAddMeeting = async (meeting: Meeting) => {
-    try {
-      await addMeeting(meeting);
-      await loadMeetings(); // Reload the meetings list
-    } catch (error) {
-      console.error('Error adding meeting:', error);
-      Alert.alert('Error', 'Failed to add meeting');
-    }
-  };
-
-  const handleDeleteMeeting = async (meetingId: string) => {
-    try {
-      await deleteMeeting(meetingId);
-      await loadMeetings(); // Reload the meetings list
-    } catch (error) {
-      console.error('Error deleting meeting:', error);
-      Alert.alert('Error', 'Failed to delete meeting');
-    }
-  };
-
-  const handleExport = async () => {
-    try {
-      const jsonString = await exportMeetings();
-      
-      if (Platform.OS === 'web') {
-        // For web, create a download link
-        const blob = new Blob([jsonString], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = 'meetings.json';
-        link.click();
-        URL.revokeObjectURL(url);
-      } else {
-        // For mobile, use Share API
-        const fileUri = `${FileSystem.documentDirectory}meetings.json`;
-        await FileSystem.writeAsStringAsync(fileUri, jsonString);
-        await Share.share({
-          url: fileUri,
-          title: 'Meetings Export',
-        });
-      }
-    } catch (error) {
-      console.error('Error exporting meetings:', error);
-      Alert.alert('Error', 'Failed to export meetings');
-    }
-  };
-
-  const handleImport = async () => {
-    try {
-      const result = await DocumentPicker.getDocumentAsync({
-        type: 'application/json',
-      });
-
-      if (result.type === 'success') {
-        const fileContent = await FileSystem.readAsStringAsync(result.uri);
-        await importMeetings(fileContent);
-        await loadMeetings(); // Reload the meetings list
-        Alert.alert('Success', 'Meetings imported successfully');
-      }
-    } catch (error) {
-      console.error('Error importing meetings:', error);
-      Alert.alert('Error', 'Failed to import meetings');
-    }
+  const handleMeetingSelect = (meeting: Meeting) => {
+    setShowSearch(false);
+    // Navigate to the meeting detail page
+    window.location.href = `/meeting/${meeting.id}`;
   };
 
   return (
-    <View style={styles.container}>
-      <View style={styles.buttonContainer}>
-        <Button title="Export Meetings" onPress={handleExport} />
-        <Button title="Import Meetings" onPress={handleImport} />
-      </View>
-      {isLoading ? (
-        <ActivityIndicator size="large" color="#0000ff" />
-      ) : (
-        <View>
-          {meetings.map(meeting => (
-            <View key={meeting.id}>
-              <Text>{meeting.title}</Text>
-              <Text>{meeting.date}</Text>
-            </View>
-          ))}
-        </View>
+    <div className="flex flex-col h-screen bg-white">
+      <div className="flex items-center justify-between p-4 border-b border-gray-200">
+        <h1 className="text-2xl font-bold">Meetings</h1>
+        <button
+          onClick={() => window.location.href = '/meeting/new'}
+          className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+        >
+          + New Meeting
+        </button>
+      </div>
+      <div className="flex-1 overflow-y-auto">
+        {meetings.map((meeting) => (
+          <div
+            key={meeting.id}
+            onClick={() => window.location.href = `/meeting/${meeting.id}`}
+            className="p-4 border-b border-gray-200 hover:bg-gray-50 cursor-pointer"
+          >
+            <div className="font-semibold text-lg">{meeting.title}</div>
+            <div className="text-sm text-gray-500">
+              {new Date(meeting.date).toLocaleDateString()}
+            </div>
+          </div>
+        ))}
+      </div>
+      {showSearch && (
+        <SearchDialog
+          meetings={meetings}
+          onSelect={handleMeetingSelect}
+          onClose={() => setShowSearch(false)}
+        />
       )}
-    </View>
+    </div>
   );
-}
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    padding: 10,
-  },
-  buttonContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    padding: 10,
-  },
-}); 
+}; 

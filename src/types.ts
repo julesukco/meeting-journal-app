@@ -2,8 +2,9 @@ export interface Meeting {
   id: string;
   title: string;
   date: string;
+  notes: string;
+  attendees: string[];
   content: string;
-  series?: string;
 }
 
 export interface ActionItem {

@@ -5,6 +5,7 @@ import { Editor } from './components/Editor';
 import { ActionItems } from './components/ActionItems';
 import { exportMeetings, importMeetings } from './services/storage';
 import { RightNav } from './components/RightNav';
+import { SearchDialog } from './components/SearchDialog';
 
 function App() {
   const [meetings, setMeetings] = useState<Meeting[]>(() => {
@@ -20,6 +21,7 @@ function App() {
 
   const [isLeftNavVisible, setIsLeftNavVisible] = useState(true);
   const [isRightNavVisible, setIsRightNavVisible] = useState(true);
+  const [showSearch, setShowSearch] = useState(false);
 
   useEffect(() => {
     localStorage.setItem('meetings', JSON.stringify(meetings));
@@ -29,12 +31,38 @@ function App() {
     localStorage.setItem('actionItems', JSON.stringify(actionItems));
   }, [actionItems]);
 
+  // Global keyboard shortcut handler
+  useEffect(() => {
+    const handleKeyPress = (e: KeyboardEvent) => {
+      // Check if we're not in an input or textarea
+      const target = e.target as HTMLElement;
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') {
+        return;
+      }
+
+      if (e.key === '\\') {
+        e.preventDefault();
+        setShowSearch(true);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyPress);
+    return () => window.removeEventListener('keydown', handleKeyPress);
+  }, []);
+
+  const handleMeetingSelect = (meeting: Meeting) => {
+    setShowSearch(false);
+    setSelectedMeeting(meeting);
+  };
+
   const handleNewMeeting = useCallback(() => {
     const newMeeting: Meeting = {
       id: Date.now().toString(),
       title: 'New Meeting',
       date: new Date().toLocaleDateString(),
       content: '',
+      notes: '',
+      attendees: []
     };
     setMeetings((prev) => [...prev, newMeeting]);
     setSelectedMeeting(newMeeting);
@@ -219,7 +247,7 @@ function App() {
         />
       </div>
 
-      {/* Right Navigation - render RightNav directly as the nav container */}
+      {/* Right Navigation */}
       <RightNav
         isVisible={isRightNavVisible}
         actionItems={actionItems.filter(item =>
@@ -232,6 +260,15 @@ function App() {
           setMeetings(saved ? JSON.parse(saved) : []);
         }}
       />
+
+      {/* Search Dialog */}
+      {showSearch && (
+        <SearchDialog
+          meetings={meetings}
+          onSelect={handleMeetingSelect}
+          onClose={() => setShowSearch(false)}
+        />
+      )}
     </div>
   );
 }
