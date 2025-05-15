@@ -39,12 +39,9 @@ export const Editor: React.FC<EditorProps> = ({
     setEditorReady(true);
   }, []);
 
+  // Handle initial cursor positioning when meeting is opened
   useEffect(() => {
     if (meeting && editorReady) {
-      // Use the processed content that applies strikethrough to completed items
-      const processedContent = processContent(meeting.content);
-      setContent(processedContent);
-
       // After content is set, move cursor to end and scroll to bottom
       setTimeout(() => {
         const quill = quillRef.current?.getEditor();
@@ -60,6 +57,15 @@ export const Editor: React.FC<EditorProps> = ({
           }
         }
       }, 0);
+    }
+  }, [meeting?.id, editorReady]); // Only run when meeting ID changes or editor becomes ready
+
+  // Handle content updates
+  useEffect(() => {
+    if (meeting && editorReady) {
+      // Use the processed content that applies strikethrough to completed items
+      const processedContent = processContent(meeting.content);
+      setContent(processedContent);
     } else if (!meeting) {
       setContent('');
     }
@@ -199,7 +205,8 @@ export const Editor: React.FC<EditorProps> = ({
       }
     },
     clipboard: {
-      matchVisual: false // Helps with preserving styles on paste
+      matchVisual: false, // Helps with preserving styles on paste
+      preserveWhitespace: true // Preserve whitespace on paste
     }
   };
   
@@ -207,7 +214,8 @@ export const Editor: React.FC<EditorProps> = ({
     'bold', 'italic', 'underline', 'strike',
     'list', 'bullet',
     'link', 'image',
-    'width', 'height', 'style' // Add these formats to preserve image sizing
+    'width', 'height', 'style', // Add these formats to preserve image sizing
+    'white-space' // Add this to preserve whitespace
   ];
 
   const handleExport = async () => {
