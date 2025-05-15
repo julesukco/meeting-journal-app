@@ -8,7 +8,7 @@ interface RightNavProps {
   actionItems: ActionItem[];
   selectedMeetingId: string | undefined;
   onToggleComplete: (id: string) => void;
-  onMeetingsImported?: () => void; // Optional: callback to reload meetings after import
+  onMeetingsImported?: () => void;
 }
 
 export const RightNav: React.FC<RightNavProps> = ({

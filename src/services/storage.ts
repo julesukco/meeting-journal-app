@@ -1,6 +1,6 @@
 // Remove the AsyncStorage import and use localStorage instead
 const STORAGE_KEYS = {
-  MEETINGS: '@meetings',
+  MEETINGS: 'meetings',
 };
 
 export interface Meeting {
