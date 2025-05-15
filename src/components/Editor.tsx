@@ -332,10 +332,6 @@ export const Editor: React.FC<EditorProps> = ({
           />
         </div>
       </div>
-      
-      <div className="mt-4 text-sm text-gray-500">
-        <p>Tip: Type "AI: [task]" to create an action item. Paste images directly into the editor and resize them by dragging the handles.</p>
-      </div>
     </div>
   );
 };
