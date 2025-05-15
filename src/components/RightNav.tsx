@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { ActionItem } from '../types';
 import { ActionItems } from './ActionItems';
 import { Reminders } from './Reminders';
-import { exportMeetings, importMeetings } from '../services/storage';
+import { exportMeetings, importMeetings, getReminders, Reminder } from '../services/storage';
 
 interface RightNavProps {
   isVisible: boolean;
@@ -12,11 +12,6 @@ interface RightNavProps {
   onMeetingsImported?: () => void;
 }
 
-interface Reminder {
-  id: string;
-  text: string;
-}
-
 export const RightNav: React.FC<RightNavProps> = ({
   isVisible,
   actionItems,
@@ -24,11 +19,18 @@ export const RightNav: React.FC<RightNavProps> = ({
   onToggleComplete,
   onMeetingsImported,
 }) => {
-  const [reminders, setReminders] = useState<Reminder[]>(() => {
-    const saved = localStorage.getItem('reminders');
-    return saved ? JSON.parse(saved) : [];
-  });
+  const [reminders, setReminders] = useState<Reminder[]>([]);
 
+  // Load reminders on component mount
+  useEffect(() => {
+    const loadReminders = async () => {
+      const loadedReminders = await getReminders();
+      setReminders(loadedReminders);
+    };
+    loadReminders();
+  }, []);
+
+  // Save reminders whenever they change
   useEffect(() => {
     localStorage.setItem('reminders', JSON.stringify(reminders));
   }, [reminders]);
@@ -69,15 +71,18 @@ export const RightNav: React.FC<RightNavProps> = ({
         try {
           const content = e.target?.result as string;
           await importMeetings(content);
-          alert('Meetings imported successfully');
+          // Reload reminders after import
+          const loadedReminders = await getReminders();
+          setReminders(loadedReminders);
+          alert('Meetings and reminders imported successfully');
           if (onMeetingsImported) onMeetingsImported();
         } catch {
-          alert('Failed to import meetings');
+          alert('Failed to import meetings and reminders');
         }
       };
       reader.readAsText(file);
     } catch {
-      alert('Failed to import meetings');
+      alert('Failed to import meetings and reminders');
     }
   };
 

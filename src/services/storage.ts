@@ -1,6 +1,7 @@
 // Remove the AsyncStorage import and use localStorage instead
 const STORAGE_KEYS = {
   MEETINGS: 'meetings',
+  REMINDERS: 'reminders'
 };
 
 export interface Meeting {
@@ -10,6 +11,16 @@ export interface Meeting {
   notes: string;
   attendees: string[];
   content: string; // Add this to match your types Meeting interface
+}
+
+export interface Reminder {
+  id: string;
+  text: string;
+}
+
+export interface ExportData {
+  meetings: Meeting[];
+  reminders: Reminder[];
 }
 
 // Save meetings
@@ -25,13 +36,14 @@ export const saveMeetings = async (meetings: Meeting[]): Promise<void> => {
 
 // Get meetings
 export const getMeetings = async (): Promise<Meeting[]> => {
-  try {
-    const jsonValue = localStorage.getItem(STORAGE_KEYS.MEETINGS);
-    return jsonValue != null ? JSON.parse(jsonValue) : [];
-  } catch (error) {
-    console.error('Error getting meetings:', error);
-    throw error;
-  }
+  const meetings = localStorage.getItem(STORAGE_KEYS.MEETINGS);
+  return meetings ? JSON.parse(meetings) : [];
+};
+
+// Get reminders
+export const getReminders = async (): Promise<Reminder[]> => {
+  const reminders = localStorage.getItem(STORAGE_KEYS.REMINDERS);
+  return reminders ? JSON.parse(reminders) : [];
 };
 
 // Add a single meeting
@@ -75,33 +87,35 @@ export const deleteMeeting = async (meetingId: string): Promise<void> => {
 
 // Export meetings to JSON file
 export const exportMeetings = async (): Promise<string> => {
-  try {
-    const meetings = await getMeetings();
-    const jsonString = JSON.stringify(meetings, null, 2);
-    return jsonString;
-  } catch (error) {
-    console.error('Error exporting meetings:', error);
-    throw error;
-  }
+  const meetings = await getMeetings();
+  const reminders = await getReminders();
+  const exportData: ExportData = {
+    meetings,
+    reminders
+  };
+  return JSON.stringify(exportData, null, 2);
 };
 
 // Import meetings from JSON string
-export const importMeetings = async (jsonString: string): Promise<void> => {
+export const importMeetings = async (content: string): Promise<void> => {
   try {
-    const importedMeetings = JSON.parse(jsonString);
-    // Validate the imported data structure
-    if (!Array.isArray(importedMeetings)) {
-      throw new Error('Invalid data format');
+    const data: ExportData = JSON.parse(content);
+    
+    // Validate the data structure
+    if (!Array.isArray(data.meetings)) {
+      throw new Error('Invalid meetings data');
     }
-    // Validate each meeting object
-    importedMeetings.forEach(meeting => {
-      if (!meeting.id || !meeting.title || !meeting.date) {
-        throw new Error('Invalid meeting data structure');
-      }
-    });
-    await saveMeetings(importedMeetings);
+    if (!Array.isArray(data.reminders)) {
+      throw new Error('Invalid reminders data');
+    }
+
+    // Save meetings
+    localStorage.setItem(STORAGE_KEYS.MEETINGS, JSON.stringify(data.meetings));
+    
+    // Save reminders
+    localStorage.setItem(STORAGE_KEYS.REMINDERS, JSON.stringify(data.reminders));
   } catch (error) {
-    console.error('Error importing meetings:', error);
+    console.error('Error importing data:', error);
     throw error;
   }
 }; 
