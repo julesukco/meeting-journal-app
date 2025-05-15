@@ -224,16 +224,18 @@ function App() {
           element={
             <div className="flex h-screen">
               {isLeftNavVisible && (
-                <MeetingList
-                  meetings={meetings}
-                  selectedMeeting={selectedMeeting}
-                  onSelectMeeting={handleMeetingSelect}
-                  onNewMeeting={handleNewMeeting}
-                  onReorderMeeting={handleReorderMeeting}
-                  onUpdateMeeting={handleUpdateMeeting}
-                />
+                <div className="h-screen overflow-y-auto">
+                  <MeetingList
+                    meetings={meetings}
+                    selectedMeeting={selectedMeeting}
+                    onSelectMeeting={handleMeetingSelect}
+                    onNewMeeting={handleNewMeeting}
+                    onReorderMeeting={handleReorderMeeting}
+                    onUpdateMeeting={handleUpdateMeeting}
+                  />
+                </div>
               )}
-              <div className="flex-1 flex flex-col h-screen">
+              <div className="flex-1 flex flex-col h-screen overflow-y-auto">
                 {/* Header row with nav toggles and meeting title */}
                 <div className="sticky top-0 z-10 flex items-center justify-between px-2 py-2 border-b border-gray-200 bg-white">
                   <button
@@ -261,12 +263,14 @@ function App() {
                 />
               </div>
               {isRightNavVisible && (
-                <RightNav
-                  actionItems={selectedMeeting ? actionItems.filter(item => item.meetingId === selectedMeeting.id) : []}
-                  onToggleActionItem={toggleActionItem}
-                  onExport={handleExport}
-                  onImport={handleImport}
-                />
+                <div className="h-screen overflow-y-auto">
+                  <RightNav
+                    actionItems={selectedMeeting ? actionItems.filter(item => item.meetingId === selectedMeeting.id) : []}
+                    onToggleActionItem={toggleActionItem}
+                    onExport={handleExport}
+                    onImport={handleImport}
+                  />
+                </div>
               )}
             </div>
           }
