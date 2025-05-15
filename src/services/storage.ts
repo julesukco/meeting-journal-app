@@ -1,7 +1,8 @@
 // Remove the AsyncStorage import and use localStorage instead
 const STORAGE_KEYS = {
   MEETINGS: 'meetings',
-  REMINDERS: 'reminders'
+  REMINDERS: 'reminders',
+  GROUPS: 'meetingGroups',
 };
 
 export interface Meeting {
@@ -21,6 +22,7 @@ export interface Reminder {
 export interface ExportData {
   meetings: Meeting[];
   reminders: Reminder[];
+  groups?: string[];
 }
 
 // Save meetings
@@ -89,9 +91,12 @@ export const deleteMeeting = async (meetingId: string): Promise<void> => {
 export const exportMeetings = async (): Promise<string> => {
   const meetings = await getMeetings();
   const reminders = await getReminders();
+  const groupsRaw = localStorage.getItem(STORAGE_KEYS.GROUPS);
+  const groups = groupsRaw ? JSON.parse(groupsRaw) : [];
   const exportData: ExportData = {
     meetings,
-    reminders
+    reminders,
+    groups,
   };
   return JSON.stringify(exportData, null, 2);
 };
@@ -100,7 +105,6 @@ export const exportMeetings = async (): Promise<string> => {
 export const importMeetings = async (content: string): Promise<void> => {
   try {
     const data: ExportData = JSON.parse(content);
-    
     // Validate the data structure
     if (!Array.isArray(data.meetings)) {
       throw new Error('Invalid meetings data');
@@ -108,12 +112,14 @@ export const importMeetings = async (content: string): Promise<void> => {
     if (!Array.isArray(data.reminders)) {
       throw new Error('Invalid reminders data');
     }
-
     // Save meetings
     localStorage.setItem(STORAGE_KEYS.MEETINGS, JSON.stringify(data.meetings));
-    
     // Save reminders
     localStorage.setItem(STORAGE_KEYS.REMINDERS, JSON.stringify(data.reminders));
+    // Save groups (if present)
+    if (Array.isArray(data.groups)) {
+      localStorage.setItem(STORAGE_KEYS.GROUPS, JSON.stringify(data.groups));
+    }
   } catch (error) {
     console.error('Error importing data:', error);
     throw error;
