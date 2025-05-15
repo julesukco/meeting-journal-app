@@ -3,6 +3,7 @@ import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css'; // Import styles
 import { Meeting } from '../types';
 import ImageResize from 'quill-image-resize-module-react';
+import { getMeetings, exportMeetings, importMeetings } from '../services/storage';
 
 // Register the image resize module with Quill
 if (typeof window !== 'undefined') {
@@ -185,6 +186,53 @@ export const Editor: React.FC<EditorProps> = ({
     'width', 'height', 'style' // Add these formats to preserve image sizing
   ];
 
+  const handleExport = async () => {
+    try {
+      const jsonString = await exportMeetings();
+      const blob = new Blob([jsonString], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'meetings.json';
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Error exporting meetings:', error);
+      alert('Failed to export meetings');
+    }
+  };
+
+  const handleImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    try {
+      const file = event.target.files?.[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        try {
+          const content = e.target?.result as string;
+          await importMeetings(content);
+          alert('Meetings imported successfully');
+          // Reload the current meeting if it exists
+          if (meeting) {
+            const meetings = await getMeetings();
+            const updatedMeeting = meetings.find(m => m.id === meeting.id);
+            if (updatedMeeting) {
+              onUpdate(updatedMeeting);
+            }
+          }
+        } catch (error) {
+          console.error('Error importing meetings:', error);
+          alert('Failed to import meetings');
+        }
+      };
+      reader.readAsText(file);
+    } catch (error) {
+      console.error('Error importing meetings:', error);
+      alert('Failed to import meetings');
+    }
+  };
+
   if (!meeting) {
     return (
       <div className="flex-1 p-6 bg-gray-50 flex items-center justify-center">
@@ -194,7 +242,7 @@ export const Editor: React.FC<EditorProps> = ({
   }
 
   return (
-    <div className="flex-1 p-6 flex flex-col">
+    <div className="flex-1 p-6 flex flex-col relative h-full">
       <div className="mb-4">
         <input
           type="text"
@@ -204,21 +252,47 @@ export const Editor: React.FC<EditorProps> = ({
         />
       </div>
       
-      <div className="flex-1 overflow-auto">
-        <ReactQuill
-          ref={quillRef}
-          theme="snow"
-          value={content}
-          onChange={handleChange}
-          modules={modules}
-          formats={formats}
-          className="h-full"
-          preserveWhitespace={true}
-        />
+      <div className="flex-1 h-[calc(100vh-300px)]">
+        <div className="h-full flex flex-col">
+          <ReactQuill
+            ref={quillRef}
+            theme="snow"
+            value={content}
+            onChange={handleChange}
+            modules={modules}
+            formats={formats}
+            className="h-full flex flex-col"
+            preserveWhitespace={true}
+          />
+        </div>
       </div>
       
       <div className="mt-4 text-sm text-gray-500">
         <p>Tip: Type "AI: [task]" to create an action item. Paste images directly into the editor and resize them by dragging the handles.</p>
+      </div>
+
+      <div className="fixed bottom-6 right-6 flex space-x-2 z-50">
+        <button
+          onClick={handleExport}
+          className="px-4 py-2 bg-blue-500 text-white rounded-lg shadow-lg hover:bg-blue-600 transition-colors flex items-center"
+        >
+          <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+          </svg>
+          Export
+        </button>
+        <label className="px-4 py-2 bg-green-500 text-white rounded-lg shadow-lg hover:bg-green-600 transition-colors cursor-pointer flex items-center">
+          <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+          </svg>
+          Import
+          <input
+            type="file"
+            accept=".json"
+            onChange={handleImport}
+            className="hidden"
+          />
+        </label>
       </div>
     </div>
   );

@@ -1,24 +1,22 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
+// Remove the AsyncStorage import and use localStorage instead
+const STORAGE_KEYS = {
+  MEETINGS: '@meetings',
+};
 
-// Define the types for our stored data
 export interface Meeting {
   id: string;
   title: string;
   date: string;
   notes: string;
   attendees: string[];
+  content: string; // Add this to match your types Meeting interface
 }
-
-// Storage keys
-const STORAGE_KEYS = {
-  MEETINGS: '@meetings',
-};
 
 // Save meetings
 export const saveMeetings = async (meetings: Meeting[]): Promise<void> => {
   try {
     const jsonValue = JSON.stringify(meetings);
-    await AsyncStorage.setItem(STORAGE_KEYS.MEETINGS, jsonValue);
+    localStorage.setItem(STORAGE_KEYS.MEETINGS, jsonValue);
   } catch (error) {
     console.error('Error saving meetings:', error);
     throw error;
@@ -28,7 +26,7 @@ export const saveMeetings = async (meetings: Meeting[]): Promise<void> => {
 // Get meetings
 export const getMeetings = async (): Promise<Meeting[]> => {
   try {
-    const jsonValue = await AsyncStorage.getItem(STORAGE_KEYS.MEETINGS);
+    const jsonValue = localStorage.getItem(STORAGE_KEYS.MEETINGS);
     return jsonValue != null ? JSON.parse(jsonValue) : [];
   } catch (error) {
     console.error('Error getting meetings:', error);
