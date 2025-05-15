@@ -5,6 +5,7 @@ export interface Meeting {
   notes: string;
   attendees: string[];
   content: string;
+  group?: string; // Optional group name for organizing meetings
 }
 
 export interface ActionItem {

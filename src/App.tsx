@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useEffect } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Meeting, ActionItem } from './types';
 import { MeetingList } from './components/MeetingList';
 import { Editor } from './components/Editor';
@@ -6,6 +7,7 @@ import { ActionItems } from './components/ActionItems';
 import { exportMeetings, importMeetings } from './services/storage';
 import { RightNav } from './components/RightNav';
 import { SearchDialog } from './components/SearchDialog';
+import { MeetingListScreen } from './screens/MeetingListScreen';
 
 function App() {
   const [meetings, setMeetings] = useState<Meeting[]>(() => {
@@ -199,69 +201,57 @@ function App() {
   };
 
   const handleImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
     try {
-      const file = event.target.files?.[0];
-      if (!file) return;
-      const reader = new FileReader();
-      reader.onload = async (e) => {
-        try {
-          const content = e.target?.result as string;
-          await importMeetings(content);
-          alert('Meetings imported successfully');
-          // Optionally reload meetings here if needed
-        } catch {
-          alert('Failed to import meetings');
-        }
-      };
-      reader.readAsText(file);
-    } catch {
+      const text = await file.text();
+      await importMeetings(text);
+      // Reload the page to refresh the state
+      window.location.reload();
+    } catch (error) {
       alert('Failed to import meetings');
     }
   };
 
   return (
-    <div className="flex h-screen">
-      {/* Left Navigation */}
-      <div className={`transition-all duration-300 overflow-hidden bg-white border-r border-gray-200 ${isLeftNavVisible ? 'w-64' : 'w-0'}`}>
-        {isLeftNavVisible && (
-          <MeetingList
-            meetings={meetings}
-            selectedMeeting={selectedMeeting}
-            onSelectMeeting={setSelectedMeeting}
-            onNewMeeting={handleNewMeeting}
-            onReorderMeeting={handleReorderMeeting}
-          />
-        )}
-      </div>
-
-      {/* Main Content */}
-      <div className="flex-1">
-        <Editor
-          meeting={selectedMeeting}
-          onUpdate={handleUpdateMeeting}
-          processContent={processCompletedItems}
-          onToggleLeftNav={() => setIsLeftNavVisible(!isLeftNavVisible)}
-          onToggleRightNav={() => setIsRightNavVisible(!isRightNavVisible)}
-          isLeftNavVisible={isLeftNavVisible}
-          isRightNavVisible={isRightNavVisible}
+    <Router>
+      <Routes>
+        <Route path="/" element={<MeetingListScreen />} />
+        <Route
+          path="/meeting/:id"
+          element={
+            <div className="flex h-screen">
+              {isLeftNavVisible && (
+                <MeetingList
+                  meetings={meetings}
+                  selectedMeeting={selectedMeeting}
+                  onSelectMeeting={handleMeetingSelect}
+                  onNewMeeting={handleNewMeeting}
+                  onReorderMeeting={handleReorderMeeting}
+                  onUpdateMeeting={handleUpdateMeeting}
+                />
+              )}
+              <div className="flex-1 flex flex-col h-screen">
+                <Editor
+                  meeting={selectedMeeting}
+                  onUpdateMeeting={handleUpdateMeeting}
+                  processCompletedItems={processCompletedItems}
+                />
+              </div>
+              {isRightNavVisible && (
+                <RightNav
+                  actionItems={actionItems}
+                  onToggleActionItem={toggleActionItem}
+                  onExport={handleExport}
+                  onImport={handleImport}
+                />
+              )}
+            </div>
+          }
         />
-      </div>
-
-      {/* Right Navigation */}
-      <RightNav
-        isVisible={isRightNavVisible}
-        actionItems={actionItems.filter(item =>
-          item.meetingId === selectedMeeting?.id && !item.completed
-        )}
-        selectedMeetingId={selectedMeeting?.id}
-        onToggleComplete={toggleActionItem}
-        onMeetingsImported={() => {
-          const saved = localStorage.getItem('meetings');
-          setMeetings(saved ? JSON.parse(saved) : []);
-        }}
-      />
-
-      {/* Search Dialog */}
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
       {showSearch && (
         <SearchDialog
           meetings={meetings}
@@ -269,7 +259,7 @@ function App() {
           onClose={() => setShowSearch(false)}
         />
       )}
-    </div>
+    </Router>
   );
 }
 

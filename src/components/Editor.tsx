@@ -14,22 +14,14 @@ if (typeof window !== 'undefined') {
 
 interface EditorProps {
   meeting: Meeting | null;
-  onUpdate: (meeting: Meeting) => void;
-  processContent: (content: string) => string;
-  onToggleLeftNav?: () => void;
-  onToggleRightNav?: () => void;
-  isLeftNavVisible?: boolean;
-  isRightNavVisible?: boolean;
+  onUpdateMeeting: (meeting: Meeting) => void;
+  processCompletedItems: (content: string) => string;
 }
 
 export const Editor: React.FC<EditorProps> = ({ 
   meeting, 
-  onUpdate,
-  processContent,
-  onToggleLeftNav,
-  onToggleRightNav,
-  isLeftNavVisible = true,
-  isRightNavVisible = true
+  onUpdateMeeting,
+  processCompletedItems,
 }) => {
   const [content, setContent] = useState('');
   const quillRef = React.useRef<ReactQuill>(null);
@@ -65,17 +57,17 @@ export const Editor: React.FC<EditorProps> = ({
   useEffect(() => {
     if (meeting && editorReady) {
       // Use the processed content that applies strikethrough to completed items
-      const processedContent = processContent(meeting.content);
+      const processedContent = processCompletedItems(meeting.content);
       setContent(processedContent);
     } else if (!meeting) {
       setContent('');
     }
-  }, [meeting, processContent, editorReady]);
+  }, [meeting, processCompletedItems, editorReady]);
 
   const handleChange = (value: string) => {
     setContent(value);
     if (meeting) {
-      onUpdate({
+      onUpdateMeeting({
         ...meeting,
         content: value,
       });
@@ -253,7 +245,7 @@ export const Editor: React.FC<EditorProps> = ({
             const meetings = await getMeetings();
             const updatedMeeting = meetings.find(m => m.id === meeting.id);
             if (updatedMeeting) {
-              onUpdate(updatedMeeting);
+              onUpdateMeeting(updatedMeeting);
             }
           }
         } catch (error) {
@@ -268,81 +260,31 @@ export const Editor: React.FC<EditorProps> = ({
     }
   };
 
-  if (!meeting) {
-    return (
-      <div className="flex-1 p-6 bg-gray-50 flex items-center justify-center">
-        <p className="text-gray-500">Select a meeting or create a new one</p>
-      </div>
-    );
-  }
-
   return (
-    <div className="flex-1 p-6 flex flex-col relative h-full">
-      <div className="absolute top-4 left-4 z-50">
-        <button
-          onClick={onToggleLeftNav}
-          className="p-2 bg-white rounded-lg shadow-lg hover:bg-gray-50 transition-colors"
-          title={isLeftNavVisible ? "Hide left panel" : "Show left panel"}
-        >
-          <svg 
-            className="w-5 h-5 text-gray-600" 
-            fill="none" 
-            stroke="currentColor" 
-            viewBox="0 0 24 24"
-          >
-            {isLeftNavVisible ? (
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
-            ) : (
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 5l7 7-7 7M5 5l7 7-7 7" />
-            )}
-          </svg>
-        </button>
-      </div>
-
-      <div className="absolute top-4 right-4 z-50">
-        <button
-          onClick={onToggleRightNav}
-          className="p-2 bg-white rounded-lg shadow-lg hover:bg-gray-50 transition-colors"
-          title={isRightNavVisible ? "Hide right panel" : "Show right panel"}
-        >
-          <svg 
-            className="w-5 h-5 text-gray-600" 
-            fill="none" 
-            stroke="currentColor" 
-            viewBox="0 0 24 24"
-          >
-            {isRightNavVisible ? (
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 5l7 7-7 7M5 5l7 7-7 7" />
-            ) : (
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
-            )}
-          </svg>
-        </button>
-      </div>
-
-      <div className="mb-4">
-        <input
-          type="text"
-          value={meeting.title}
-          onChange={(e) => onUpdate({ ...meeting, title: e.target.value })}
-          className="w-full text-2xl font-bold border-b border-gray-300 pb-2 focus:outline-none ml-12 mr-16"
-        />
-      </div>
-      
-      <div className="flex-1 h-[calc(100vh-300px)]">
-        <div className="h-full flex flex-col">
-          <ReactQuill
-            ref={quillRef}
-            theme="snow"
-            value={content}
-            onChange={handleChange}
-            modules={modules}
-            formats={formats}
-            className="h-full flex flex-col"
-            preserveWhitespace={true}
-          />
+    <div className="flex-1 flex flex-col h-screen">
+      {meeting && (
+        <div className="flex-1 flex flex-col">
+          <div className="p-4 border-b border-gray-200">
+            <input
+              type="text"
+              value={meeting.title}
+              onChange={(e) => onUpdateMeeting({ ...meeting, title: e.target.value })}
+              className="w-full text-2xl font-bold border-b border-gray-300 pb-2 focus:outline-none"
+            />
+          </div>
+          <div className="flex-1 overflow-y-auto">
+            <ReactQuill
+              ref={quillRef}
+              value={content}
+              onChange={handleChange}
+              modules={modules}
+              formats={formats}
+              className="h-full"
+              theme="snow"
+            />
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 };
