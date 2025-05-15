@@ -235,7 +235,7 @@ function App() {
               )}
               <div className="flex-1 flex flex-col h-screen">
                 {/* Header row with nav toggles and meeting title */}
-                <div className="flex items-center justify-between px-2 py-2 border-b border-gray-200 bg-white">
+                <div className="sticky top-0 z-10 flex items-center justify-between px-2 py-2 border-b border-gray-200 bg-white">
                   <button
                     onClick={() => setIsLeftNavVisible((v) => !v)}
                     className="bg-white border border-gray-300 rounded-full p-1 shadow hover:bg-gray-100"
