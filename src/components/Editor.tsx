@@ -179,6 +179,7 @@ export const Editor: React.FC<EditorProps> = ({
       container: [
         ['bold', 'italic', 'underline', 'strike'],
         [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+        [{ 'indent': '-1' }, { 'indent': '+1' }],
         ['link', 'image'],
         ['clean']
       ],
@@ -206,6 +207,7 @@ export const Editor: React.FC<EditorProps> = ({
   const formats = [
     'bold', 'italic', 'underline', 'strike',
     'list', 'bullet',
+    'indent',
     'link', 'image',
     'width', 'height', 'style', // Add these formats to preserve image sizing
     'white-space', // Add this to preserve whitespace

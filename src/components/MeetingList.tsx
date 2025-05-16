@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { CalendarDays, Plus, ArrowUp, ArrowDown, ChevronDown, ChevronRight, FolderPlus } from 'lucide-react';
 import { Meeting } from '../types';
 
@@ -137,6 +137,16 @@ export function MeetingList({
   const allGroups = [''].concat(groups);
   const sortedGroups = allGroups;
 
+  const [editingMeetingId, setEditingMeetingId] = useState<string | null>(null);
+  const [editingTitle, setEditingTitle] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (editingMeetingId && inputRef.current) {
+      inputRef.current.focus();
+    }
+  }, [editingMeetingId]);
+
   return (
     <div className="w-64 bg-gray-50 border-r border-gray-200 flex flex-col h-screen">
       <div className="flex items-center justify-between p-2 border-b border-gray-200">
@@ -231,10 +241,41 @@ export function MeetingList({
               >
                 <div className="flex items-center gap-1">
                   <div 
-                    className="text-sm text-gray-800 flex-1 truncate"
+                    className="text-sm text-gray-800 flex-1 truncate cursor-pointer"
+                    onDoubleClick={() => {
+                      setEditingMeetingId(meeting.id);
+                      setEditingTitle(meeting.title);
+                    }}
                     onClick={() => onSelectMeeting(meeting)}
                   >
-                    {meeting.title}
+                    {editingMeetingId === meeting.id ? (
+                      <input
+                        ref={inputRef}
+                        type="text"
+                        value={editingTitle}
+                        onChange={e => setEditingTitle(e.target.value)}
+                        onBlur={() => {
+                          if (editingTitle.trim() && editingTitle !== meeting.title) {
+                            onUpdateMeeting({ ...meeting, title: editingTitle.trim() });
+                          }
+                          setEditingMeetingId(null);
+                        }}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') {
+                            if (editingTitle.trim() && editingTitle !== meeting.title) {
+                              onUpdateMeeting({ ...meeting, title: editingTitle.trim() });
+                            }
+                            setEditingMeetingId(null);
+                          } else if (e.key === 'Escape') {
+                            setEditingMeetingId(null);
+                          }
+                        }}
+                        className="w-full px-1 py-0.5 border border-blue-300 rounded text-sm"
+                        onClick={e => e.stopPropagation()}
+                      />
+                    ) : (
+                      meeting.title
+                    )}
                   </div>
                   {onReorderMeeting && (
                     <div className="flex flex-col ml-1 shrink-0">
