@@ -5,6 +5,7 @@ import { Meeting } from '../types';
 import ImageResize from 'quill-image-resize-module-react';
 import { getMeetings, exportMeetings, importMeetings } from '../services/storage';
 import { Delta } from 'quill';
+import { marked } from 'marked';
 
 // Register the image resize module with Quill
 if (typeof window !== 'undefined') {
@@ -97,40 +98,33 @@ export const Editor: React.FC<EditorProps> = ({
     };
   }, []);
 
-  // Handle paste events to capture pasted images
+  // Handle paste events to capture pasted images and markdown tables
   useEffect(() => {
     const handlePaste = (e: ClipboardEvent) => {
-      if (e.clipboardData && e.clipboardData.items) {
-        const items = e.clipboardData.items;
-        
-        for (let i = 0; i < items.length; i++) {
-          if (items[i].type.indexOf('image') !== -1) {
-            e.preventDefault();
-            
-            const file = items[i].getAsFile();
-            if (file && quillRef.current) {
-              const reader = new FileReader();
-              reader.onload = () => {
-                const quill = quillRef.current?.getEditor();
-                if (quill) {
-                  const range = quill.getSelection(true);
-                  quill.insertEmbed(range.index, 'image', reader.result);
-                }
-              };
-              reader.readAsDataURL(file);
+      if (e.clipboardData) {
+        const text = e.clipboardData.getData('text/plain');
+        // Simple check for markdown table (pipe and dash lines)
+        if (/^\s*\|(.|\n)*\|\s*$/m.test(text) && /\|\s*-+\s*\|/.test(text)) {
+          e.preventDefault();
+          // Convert markdown to HTML
+          const htmlOrPromise = marked.parse(text);
+          const insertHtml = (html: string) => {
+            const quill = quillRef.current?.getEditor();
+            if (quill) {
+              const range = quill.getSelection(true);
+              quill.clipboard.dangerouslyPasteHTML(range.index, html);
             }
-            break;
+          };
+          if (typeof htmlOrPromise === 'string') {
+            insertHtml(htmlOrPromise);
+          } else if (htmlOrPromise instanceof Promise) {
+            htmlOrPromise.then(insertHtml);
           }
         }
       }
     };
-
-    // Add paste event listener to the document
     document.addEventListener('paste', handlePaste);
-    
-    return () => {
-      document.removeEventListener('paste', handlePaste);
-    };
+    return () => document.removeEventListener('paste', handlePaste);
   }, []);
 
   // Configure Quill to preserve all attributes on images
