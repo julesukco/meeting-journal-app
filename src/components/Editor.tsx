@@ -178,7 +178,7 @@ export const Editor: React.FC<EditorProps> = ({
     toolbar: {
       container: [
         ['bold', 'italic', 'underline', 'strike'],
-        [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+        [{ 'list': 'ordered'}, { 'list': 'bullet' }, { 'list': 'check' }],
         [{ 'indent': '-1' }, { 'indent': '+1' }],
         ['link', 'image'],
         ['clean']
