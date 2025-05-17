@@ -12,7 +12,7 @@ interface EditorProps {
   processCompletedItems: (content: string) => string;
 }
 
-export const Editor: React.FC<EditorProps> = ({ 
+const Editor: React.FC<EditorProps> = ({ 
   meeting, 
   onUpdateMeeting,
   processCompletedItems,
@@ -20,12 +20,9 @@ export const Editor: React.FC<EditorProps> = ({
   const [content, setContent] = useState('');
   const quillRef = useRef<ReactQuill>(null);
   const [editorReady, setEditorReady] = useState(false);
-  const mountedRef = useRef(false);
 
   // Add scroll to bottom function
   const scrollToBottom = useCallback(() => {
-    if (!mountedRef.current) return;
-    
     const quill = quillRef.current?.getEditor();
     if (quill) {
       const editorElement = quill.root;
@@ -36,18 +33,11 @@ export const Editor: React.FC<EditorProps> = ({
   }, []);
 
   useEffect(() => {
-    mountedRef.current = true;
     setEditorReady(true);
-    
-    return () => {
-      mountedRef.current = false;
-    };
   }, []);
 
   // Handle content updates
   useEffect(() => {
-    if (!mountedRef.current) return;
-    
     if (meeting && editorReady) {
       // Use the processed content that applies strikethrough to completed items
       const processedContent = processCompletedItems(meeting.content);
@@ -58,8 +48,6 @@ export const Editor: React.FC<EditorProps> = ({
   }, [meeting, processCompletedItems, editorReady]);
 
   const handleChange = (value: string) => {
-    if (!mountedRef.current) return;
-    
     setContent(value);
     if (meeting) {
       onUpdateMeeting({
@@ -96,8 +84,6 @@ export const Editor: React.FC<EditorProps> = ({
 
   // Handle image upload
   const imageHandler = useCallback(() => {
-    if (!mountedRef.current) return;
-    
     const input = document.createElement('input');
     input.setAttribute('type', 'file');
     input.setAttribute('accept', 'image/*');
@@ -252,3 +238,8 @@ export const Editor: React.FC<EditorProps> = ({
     </div>
   );
 };
+
+// Add display name for better debugging
+Editor.displayName = 'Editor';
+
+export { Editor };
