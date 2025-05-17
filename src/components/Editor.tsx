@@ -63,9 +63,23 @@ export const Editor: React.FC<EditorProps> = ({
     if (quill) {
       const range = quill.getSelection();
       if (range) {
-        const [leaf] = quill.getLeaf(range.index);
-        if (leaf) {
-          leaf.domNode.scrollIntoView({ behavior: 'smooth', block: 'end' });
+        try {
+          const [leaf] = quill.getLeaf(range.index);
+          if (leaf && leaf.domNode && typeof leaf.domNode.scrollIntoView === 'function') {
+            leaf.domNode.scrollIntoView({ behavior: 'smooth', block: 'end' });
+          } else {
+            // Fallback to scrolling the editor container
+            const editorElement = quill.root;
+            if (editorElement) {
+              editorElement.scrollTop = editorElement.scrollHeight;
+            }
+          }
+        } catch (error) {
+          // If anything fails, fallback to scrolling the editor container
+          const editorElement = quill.root;
+          if (editorElement) {
+            editorElement.scrollTop = editorElement.scrollHeight;
+          }
         }
       }
     }
