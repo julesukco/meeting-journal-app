@@ -4,34 +4,57 @@ import { Meeting, ActionItem } from './types';
 import { MeetingList } from './components/MeetingList';
 import { Editor } from './components/Editor';
 import { ActionItems } from './components/ActionItems';
-import { exportMeetings, importMeetings } from './services/storage';
+import { exportMeetings, importMeetings, getMeetings, saveMeetings } from './services/storage';
 import { RightNav } from './components/RightNav';
 import { SearchDialog } from './components/SearchDialog';
 import { MeetingListScreen } from './screens/MeetingListScreen';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { get, set } from 'idb-keyval';
 
 function App() {
-  const [meetings, setMeetings] = useState<Meeting[]>(() => {
-    const saved = localStorage.getItem('meetings');
-    return saved ? JSON.parse(saved) : [];
-  });
-
+  const [meetings, setMeetings] = useState<Meeting[]>([]);
   const [selectedMeeting, setSelectedMeeting] = useState<Meeting | null>(null);
-  const [actionItems, setActionItems] = useState<ActionItem[]>(() => {
-    const saved = localStorage.getItem('actionItems');
-    return saved ? JSON.parse(saved) : [];
-  });
+  const [actionItems, setActionItems] = useState<ActionItem[]>([]);
+  
+  // Load data from IndexedDB on component mount
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        // Load meetings from IndexedDB
+        const storedMeetings = await getMeetings();
+        setMeetings(storedMeetings);
+        
+        // Load action items from IndexedDB
+        const storedActionItems = await get('actionItems') || [];
+        setActionItems(storedActionItems);
+      } catch (error) {
+        console.error('Error loading data from IndexedDB:', error);
+      }
+    };
+    
+    loadData();
+  }, []);
 
   const [isLeftNavVisible, setIsLeftNavVisible] = useState(true);
   const [isRightNavVisible, setIsRightNavVisible] = useState(true);
   const [showSearch, setShowSearch] = useState(false);
 
+  // Save meetings to IndexedDB whenever they change
   useEffect(() => {
-    localStorage.setItem('meetings', JSON.stringify(meetings));
+    if (meetings.length > 0) {
+      saveMeetings(meetings).catch(error => {
+        console.error('Error saving meetings to IndexedDB:', error);
+      });
+    }
   }, [meetings]);
 
+  // Save action items to IndexedDB whenever they change
   useEffect(() => {
-    localStorage.setItem('actionItems', JSON.stringify(actionItems));
+    if (actionItems.length > 0) {
+      set('actionItems', actionItems).catch(error => {
+        console.error('Error saving action items to IndexedDB:', error);
+      });
+    }
   }, [actionItems]);
 
   // Global keyboard shortcut handler
@@ -207,11 +230,28 @@ function App() {
 
     try {
       const text = await file.text();
+      console.log('Importing data:', text.substring(0, 100) + '...');
+      
+      // Parse the imported data to check its structure
+      const importedData = JSON.parse(text);
+      console.log('Imported meetings count:', importedData.meetings?.length || 0);
+      console.log('Imported action items count:', importedData.reminders?.length || 0);
+      
       await importMeetings(text);
-      // Reload the page to refresh the state
-      window.location.reload();
+      
+      // Load the imported data into state instead of reloading the page
+      const importedMeetings = await getMeetings();
+      setMeetings(importedMeetings);
+      
+      // Also update action items if they exist in the imported data
+      if (importedData.actionItems) {
+        setActionItems(importedData.actionItems);
+      }
+      
+      alert('Import successful! Data has been loaded.');
     } catch (error) {
-      alert('Failed to import meetings');
+      console.error('Import error:', error);
+      alert('Failed to import meetings: ' + (error instanceof Error ? error.message : 'Unknown error'));
     }
   };
 

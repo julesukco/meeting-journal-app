@@ -12,6 +12,7 @@
   "dependencies": {
     "idb-keyval": "^6.2.2",
     "lucide-react": "^0.344.0",
+    "marked": "^15.0.11",
     "quill-image-resize-module-react": "^3.0.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",

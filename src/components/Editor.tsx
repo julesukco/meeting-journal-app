@@ -28,6 +28,54 @@ export const Editor: React.FC<EditorProps> = ({
   const quillRef = React.useRef<ReactQuill>(null);
   const [editorReady, setEditorReady] = useState(false);
 
+  // Add scroll to bottom function
+  const scrollToBottom = useCallback(() => {
+    const quill = quillRef.current?.getEditor();
+    if (quill) {
+      const editorElement = quill.root;
+      if (editorElement) {
+        editorElement.scrollTop = editorElement.scrollHeight;
+      }
+    }
+  }, []);
+
+  // Set up Quill event handlers
+  useEffect(() => {
+    if (quillRef.current) {
+      const quill = quillRef.current.getEditor();
+      
+      // Handle text changes
+      quill.on('text-change', (delta, oldDelta, source) => {
+        if (source === 'user') {
+          const range = quill.getSelection();
+          if (range) {
+            const length = quill.getLength();
+            const text = quill.getText();
+            const lastNewline = text.lastIndexOf('\n');
+            
+            // If we're at the end or the last character is a newline, scroll to bottom
+            if (range.index >= length - 2 || (lastNewline === length - 2)) {
+              // Use multiple timeouts to ensure scroll happens
+              setTimeout(scrollToBottom, 0);
+              setTimeout(scrollToBottom, 50);
+              setTimeout(scrollToBottom, 100);
+            }
+          }
+        }
+      });
+
+      // Handle selection changes
+      quill.on('selection-change', (range) => {
+        if (range) {
+          const length = quill.getLength();
+          if (range.index >= length - 2) {
+            setTimeout(scrollToBottom, 0);
+          }
+        }
+      });
+    }
+  }, [scrollToBottom]);
+
   useEffect(() => {
     // Set editor as ready after component mounts
     setEditorReady(true);
@@ -44,15 +92,11 @@ export const Editor: React.FC<EditorProps> = ({
           const length = quill.getLength();
           // Set cursor position to the end
           quill.setSelection(length, 0);
-          // Scroll to the bottom
-          const editorElement = quillRef.current?.getEditor().root;
-          if (editorElement) {
-            editorElement.scrollTop = editorElement.scrollHeight;
-          }
+          scrollToBottom();
         }
       }, 0);
     }
-  }, [meeting?.id, editorReady]); // Only run when meeting ID changes or editor becomes ready
+  }, [meeting?.id, editorReady, scrollToBottom]);
 
   // Handle content updates
   useEffect(() => {
