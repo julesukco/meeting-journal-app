@@ -1,6 +1,9 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css'; // Import styles
+import '@fontsource/inter/400.css';
+import '@fontsource/inter/500.css';
+import '@fontsource/inter/600.css';
 import { Meeting } from '../types';
 import { getMeetings, exportMeetings, importMeetings } from '../services/storage';
 import { Delta } from 'quill';
@@ -213,6 +216,14 @@ const Editor: React.FC<EditorProps> = ({
     }
   };
 
+  // Add a style tag for the Quill editor font
+  const editorFontStyle = {
+    fontFamily: `'Inter', 'Segoe UI', 'Helvetica Neue', Arial, 'Liberation Sans', sans-serif`,
+    fontSize: '1.05rem',
+    lineHeight: 1.7,
+    color: '#222',
+  };
+
   return (
     <div className="flex-1 flex flex-col h-screen">
       {meeting ? (
@@ -227,6 +238,7 @@ const Editor: React.FC<EditorProps> = ({
               className="h-full"
               theme="snow"
               preserveWhitespace={true}
+              style={editorFontStyle}
             />
           </div>
         </div>
