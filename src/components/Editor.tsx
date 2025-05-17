@@ -28,6 +28,20 @@ export const Editor: React.FC<EditorProps> = ({
   const quillRef = React.useRef<ReactQuill>(null);
   const [editorReady, setEditorReady] = useState(false);
 
+  // Register Quill modules once when the component mounts
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const Quill = ReactQuill.Quill;
+      try {
+        // Try to get the module - if it throws, it's not registered
+        Quill.import('modules/imageResize');
+      } catch {
+        // Module not registered, so register it
+        Quill.register('modules/imageResize', ImageResize);
+      }
+    }
+  }, []);
+
   // Add scroll to bottom function
   const scrollToBottom = useCallback(() => {
     const quill = quillRef.current?.getEditor();
