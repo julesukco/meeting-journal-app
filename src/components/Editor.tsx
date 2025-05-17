@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css'; // Import styles
 import { Meeting } from '../types';
@@ -18,11 +18,14 @@ export const Editor: React.FC<EditorProps> = ({
   processCompletedItems,
 }) => {
   const [content, setContent] = useState('');
-  const quillRef = React.useRef<ReactQuill>(null);
+  const quillRef = useRef<ReactQuill>(null);
   const [editorReady, setEditorReady] = useState(false);
+  const mountedRef = useRef(false);
 
   // Add scroll to bottom function
   const scrollToBottom = useCallback(() => {
+    if (!mountedRef.current) return;
+    
     const quill = quillRef.current?.getEditor();
     if (quill) {
       const editorElement = quill.root;
@@ -33,12 +36,18 @@ export const Editor: React.FC<EditorProps> = ({
   }, []);
 
   useEffect(() => {
-    // Set editor as ready after component mounts
+    mountedRef.current = true;
     setEditorReady(true);
+    
+    return () => {
+      mountedRef.current = false;
+    };
   }, []);
 
   // Handle content updates
   useEffect(() => {
+    if (!mountedRef.current) return;
+    
     if (meeting && editorReady) {
       // Use the processed content that applies strikethrough to completed items
       const processedContent = processCompletedItems(meeting.content);
@@ -49,6 +58,8 @@ export const Editor: React.FC<EditorProps> = ({
   }, [meeting, processCompletedItems, editorReady]);
 
   const handleChange = (value: string) => {
+    if (!mountedRef.current) return;
+    
     setContent(value);
     if (meeting) {
       onUpdateMeeting({
@@ -85,6 +96,8 @@ export const Editor: React.FC<EditorProps> = ({
 
   // Handle image upload
   const imageHandler = useCallback(() => {
+    if (!mountedRef.current) return;
+    
     const input = document.createElement('input');
     input.setAttribute('type', 'file');
     input.setAttribute('accept', 'image/*');
