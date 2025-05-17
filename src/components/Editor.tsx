@@ -238,7 +238,8 @@ export const Editor: React.FC<EditorProps> = ({
     },
     clipboard: {
       matchVisual: false, // Helps with preserving styles on paste
-      preserveWhitespace: true // Preserve whitespace on paste
+      preserveWhitespace: true, // Preserve whitespace on paste
+      preserveNewlines: true // Explicitly preserve newlines
     }
   };
   
@@ -250,7 +251,8 @@ export const Editor: React.FC<EditorProps> = ({
     'width', 'height', 'style', // Add these formats to preserve image sizing
     'white-space', // Add this to preserve whitespace
     'header', // Add header format
-    'blockquote' // Add blockquote format
+    'blockquote', // Add blockquote format
+    'pre' // Add pre format to preserve whitespace
   ];
 
   const handleExport = async () => {
