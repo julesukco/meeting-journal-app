@@ -47,30 +47,38 @@ export const Editor: React.FC<EditorProps> = ({
       // Handle text changes
       quill.on('text-change', (delta, oldDelta, source) => {
         if (source === 'user') {
-          const range = quill.getSelection();
-          if (range) {
-            const length = quill.getLength();
-            const text = quill.getText();
-            const lastNewline = text.lastIndexOf('\n');
-            
-            // If we're at the end or the last character is a newline, scroll to bottom
-            if (range.index >= length - 2 || (lastNewline === length - 2)) {
-              // Use multiple timeouts to ensure scroll happens
-              setTimeout(scrollToBottom, 0);
-              setTimeout(scrollToBottom, 50);
-              setTimeout(scrollToBottom, 100);
+          try {
+            const range = quill.getSelection();
+            if (range) {
+              const length = quill.getLength();
+              const text = quill.getText();
+              const lastNewline = text.lastIndexOf('\n');
+              
+              // If we're at the end or the last character is a newline, scroll to bottom
+              if (range.index >= length - 2 || (lastNewline === length - 2)) {
+                // Use multiple timeouts to ensure scroll happens
+                setTimeout(scrollToBottom, 0);
+                setTimeout(scrollToBottom, 50);
+                setTimeout(scrollToBottom, 100);
+              }
             }
+          } catch (error) {
+            console.error('Error handling text change:', error);
           }
         }
       });
 
       // Handle selection changes
       quill.on('selection-change', (range) => {
-        if (range) {
-          const length = quill.getLength();
-          if (range.index >= length - 2) {
-            setTimeout(scrollToBottom, 0);
+        try {
+          if (range) {
+            const length = quill.getLength();
+            if (range.index >= length - 2) {
+              setTimeout(scrollToBottom, 0);
+            }
           }
+        } catch (error) {
+          console.error('Error handling selection change:', error);
         }
       });
     }
