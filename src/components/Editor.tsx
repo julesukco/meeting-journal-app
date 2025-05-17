@@ -39,73 +39,6 @@ export const Editor: React.FC<EditorProps> = ({
     }
   }, []);
 
-  // Set up Quill event handlers
-  useEffect(() => {
-    if (quillRef.current) {
-      const quill = quillRef.current.getEditor();
-      
-      // Handle text changes
-      quill.on('text-change', (delta, oldDelta, source) => {
-        if (source === 'user') {
-          try {
-            const range = quill.getSelection();
-            if (range) {
-              const length = quill.getLength();
-              const text = quill.getText();
-              const lastNewline = text.lastIndexOf('\n');
-              
-              // If we're at the end or the last character is a newline, scroll to bottom
-              if (range.index >= length - 2 || (lastNewline === length - 2)) {
-                // Use multiple timeouts to ensure scroll happens
-                setTimeout(scrollToBottom, 0);
-                setTimeout(scrollToBottom, 50);
-                setTimeout(scrollToBottom, 100);
-              }
-            }
-          } catch (error) {
-            console.error('Error handling text change:', error);
-          }
-        }
-      });
-
-      // Handle selection changes
-      quill.on('selection-change', (range) => {
-        try {
-          if (range) {
-            const length = quill.getLength();
-            if (range.index >= length - 2) {
-              setTimeout(scrollToBottom, 0);
-            }
-          }
-        } catch (error) {
-          console.error('Error handling selection change:', error);
-        }
-      });
-    }
-  }, [scrollToBottom]);
-
-  useEffect(() => {
-    // Set editor as ready after component mounts
-    setEditorReady(true);
-  }, []);
-
-  // Handle initial cursor positioning when meeting is opened
-  useEffect(() => {
-    if (meeting && editorReady) {
-      // After content is set, move cursor to end and scroll to bottom
-      setTimeout(() => {
-        const quill = quillRef.current?.getEditor();
-        if (quill) {
-          // Get the length of the content
-          const length = quill.getLength();
-          // Set cursor position to the end
-          quill.setSelection(length, 0);
-          scrollToBottom();
-        }
-      }, 0);
-    }
-  }, [meeting?.id, editorReady, scrollToBottom]);
-
   // Handle content updates
   useEffect(() => {
     if (meeting && editorReady) {
@@ -124,6 +57,17 @@ export const Editor: React.FC<EditorProps> = ({
         ...meeting,
         content: value,
       });
+    }
+    // Always scroll to cursor position after any change
+    const quill = quillRef.current?.getEditor();
+    if (quill) {
+      const range = quill.getSelection();
+      if (range) {
+        const [leaf] = quill.getLeaf(range.index);
+        if (leaf) {
+          leaf.domNode.scrollIntoView({ behavior: 'smooth', block: 'end' });
+        }
+      }
     }
   };
 
@@ -310,6 +254,12 @@ export const Editor: React.FC<EditorProps> = ({
     }
   };
 
+  // Remove the previous useEffect for event handlers since we're handling it in onChange
+  useEffect(() => {
+    // Set editor as ready after component mounts
+    setEditorReady(true);
+  }, []);
+
   return (
     <div className="flex-1 flex flex-col h-screen">
       {meeting ? (
@@ -323,6 +273,8 @@ export const Editor: React.FC<EditorProps> = ({
               formats={formats}
               className="h-full"
               theme="snow"
+              preserveWhitespace={true}
+              scrollingContainer="html"
             />
           </div>
         </div>
