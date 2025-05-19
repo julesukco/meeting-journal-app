@@ -12,6 +12,7 @@ import Table from '@tiptap/extension-table';
 import TableRow from '@tiptap/extension-table-row';
 import TableCell from '@tiptap/extension-table-cell';
 import TableHeader from '@tiptap/extension-table-header';
+import HorizontalRule from '@tiptap/extension-horizontal-rule';
 import { Meeting } from '../types';
 import { marked } from 'marked';
 import '../styles/editor.css';
@@ -60,6 +61,7 @@ const Editor: React.FC<EditorProps> = ({
       TableRow,
       TableCell,
       TableHeader,
+      HorizontalRule,
     ],
     content: '',
     onUpdate: ({ editor }) => {
