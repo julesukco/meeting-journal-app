@@ -286,7 +286,9 @@ export function MeetingList({
                         }}
                         disabled={index === 0 && sortedGroups.indexOf(group) === 0}
                         className={`p-0.5 rounded ${
-                          index === 0 ? 'text-gray-300 cursor-not-allowed' : 'text-gray-500 hover:bg-gray-200'
+                          index === 0 && sortedGroups.indexOf(group) === 0
+                            ? 'text-gray-300 cursor-not-allowed'
+                            : 'text-gray-500 hover:bg-gray-200'
                         }`}
                         title="Move up"
                       >
@@ -297,9 +299,15 @@ export function MeetingList({
                           e.stopPropagation();
                           handleReorder(meeting, 'down', index, group);
                         }}
-                        disabled={index === (groupedMeetings[group]?.length || 0) - 1 && sortedGroups.indexOf(group) === sortedGroups.length - 1}
+                        disabled={
+                          index === (groupedMeetings[group]?.length || 0) - 1 &&
+                          sortedGroups.indexOf(group) === sortedGroups.length - 1
+                        }
                         className={`p-0.5 rounded ${
-                          index === (groupedMeetings[group]?.length || 0) - 1 ? 'text-gray-300 cursor-not-allowed' : 'text-gray-500 hover:bg-gray-200'
+                          index === (groupedMeetings[group]?.length || 0) - 1 &&
+                          sortedGroups.indexOf(group) === sortedGroups.length - 1
+                            ? 'text-gray-300 cursor-not-allowed'
+                            : 'text-gray-500 hover:bg-gray-200'
                         }`}
                         title="Move down"
                       >
