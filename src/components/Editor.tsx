@@ -83,16 +83,16 @@ const Editor: React.FC<EditorProps> = ({
     setEditorReady(true);
   }, []);
 
-  // Handle content updates
+  // Only set content when the meeting changes (not on every update)
   useEffect(() => {
-    if (meeting && editorReady && editor) {
-      // Use the processed content that applies strikethrough to completed items
-      const processedContent = processCompletedItems(meeting.content);
-      editor.commands.setContent(processedContent);
-    } else if (!meeting && editor) {
+    if (editor && meeting) {
+      editor.commands.setContent(processCompletedItems(meeting.content));
+    } else if (editor && !meeting) {
       editor.commands.setContent('');
     }
-  }, [meeting, processCompletedItems, editorReady, editor]);
+    // Only run when meeting id changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editor, meeting?.id]);
 
   // Add keyboard shortcut for task list
   useEffect(() => {
@@ -101,7 +101,11 @@ const Editor: React.FC<EditorProps> = ({
       if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === '9') {
         e.preventDefault();
         if (editor) {
-          editor.chain().focus().toggleTaskList().run();
+          if (editor.isActive('taskItem')) {
+            editor.chain().focus().splitListItem('taskItem').run();
+          } else {
+            editor.chain().focus().toggleTaskList().run();
+          }
         }
       }
     };
