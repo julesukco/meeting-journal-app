@@ -108,6 +108,12 @@ const Editor: React.FC<EditorProps> = ({
   useEffect(() => {
     if (editor && meeting) {
       editor.commands.setContent(processCompletedItems(meeting.content));
+      // Position cursor at the end and scroll to bottom
+      editor.commands.focus('end');
+      const editorElement = document.querySelector('.ProseMirror');
+      if (editorElement) {
+        editorElement.scrollTop = editorElement.scrollHeight;
+      }
     } else if (editor && !meeting) {
       editor.commands.setContent('');
     }
