@@ -179,8 +179,8 @@ const Editor: React.FC<EditorProps> = ({
     <div className="flex-1 flex flex-col h-screen">
       {meeting ? (
         <div className="flex-1 flex flex-col">
-          {/* Sticky Toolbar */}
-          <div className="sticky top-0 z-10 bg-white border-b border-gray-200 flex items-center px-2 py-1" style={{minHeight: 44}}>
+          {/* Sticky Toolbar Only */}
+          <div className="sticky z-20 bg-white border-b border-gray-200 flex items-center px-2 py-1" style={{minHeight: 44, top: 49}}>
             <ToolbarButton
               onClick={() => editor?.chain().focus().toggleBold().run()}
               active={editor?.isActive('bold')}
