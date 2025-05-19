@@ -16,12 +16,24 @@ import HorizontalRule from '@tiptap/extension-horizontal-rule';
 import { Meeting } from '../types';
 import { marked } from 'marked';
 import '../styles/editor.css';
+import { Extension } from '@tiptap/core';
 
 interface EditorProps {
   meeting: Meeting | null;
   onUpdateMeeting: (meeting: Meeting) => void;
   processCompletedItems: (content: string) => string;
 }
+
+// Minimal custom extension for task list tab/shift+tab indentation
+const TaskListTabIndent = Extension.create({
+  name: 'taskListTabIndent',
+  addKeyboardShortcuts() {
+    return {
+      Tab: () => this.editor.commands.sinkListItem('taskItem'),
+      'Shift-Tab': () => this.editor.commands.liftListItem('taskItem'),
+    };
+  },
+});
 
 const Editor: React.FC<EditorProps> = ({ 
   meeting, 
@@ -32,36 +44,10 @@ const Editor: React.FC<EditorProps> = ({
 
   const editor = useEditor({
     extensions: [
-      StarterKit.configure({
-        bulletList: {
-          keepMarks: true,
-          keepAttributes: false,
-        },
-        orderedList: {
-          keepMarks: true,
-          keepAttributes: false,
-        },
-        codeBlock: false,
-        strike: false,
-        horizontalRule: false,
-      }),
+      StarterKit,
       TaskList,
-      TaskItem.configure({
-        nested: true,
-      }),
-      Image.configure({
-        inline: true,
-        allowBase64: true,
-      }),
-      Underline,
-      CodeBlock,
-      Color,
-      TextStyle,
-      Table.configure({ resizable: true }),
-      TableRow,
-      TableCell,
-      TableHeader,
-      HorizontalRule,
+      TaskItem.configure({ nested: true }),
+      TaskListTabIndent,
     ],
     content: '',
     onUpdate: ({ editor }) => {
@@ -133,6 +119,16 @@ const Editor: React.FC<EditorProps> = ({
           } else {
             editor.chain().focus().toggleTaskList().run();
           }
+        }
+      }
+      // Custom: Tab/Shift+Tab to indent/outdent task list items
+      if (editor && editor.isActive('taskItem')) {
+        if (e.key === 'Tab' && !e.shiftKey) {
+          e.preventDefault();
+          editor.chain().focus().sinkListItem('taskItem').run();
+        } else if (e.key === 'Tab' && e.shiftKey) {
+          e.preventDefault();
+          editor.chain().focus().liftListItem('taskItem').run();
         }
       }
     };
