@@ -4,6 +4,7 @@ import StarterKit from '@tiptap/starter-kit';
 import TaskList from '@tiptap/extension-task-list';
 import TaskItem from '@tiptap/extension-task-item';
 import Image from '@tiptap/extension-image';
+import Underline from '@tiptap/extension-underline';
 import { Meeting } from '../types';
 import { marked } from 'marked';
 import '../styles/editor.css';
@@ -41,6 +42,7 @@ const Editor: React.FC<EditorProps> = ({
         inline: true,
         allowBase64: true,
       }),
+      Underline,
     ],
     content: '',
     onUpdate: ({ editor }) => {
@@ -160,10 +162,77 @@ const Editor: React.FC<EditorProps> = ({
     return () => document.removeEventListener('paste', handlePaste);
   }, [editor]);
 
+  // Toolbar button helper
+  const ToolbarButton = ({ onClick, active, label, icon }: { onClick: () => void, active?: boolean, label: string, icon?: React.ReactNode }) => (
+    <button
+      type="button"
+      className={`px-2 py-1 rounded hover:bg-gray-200 mx-1 ${active ? 'bg-blue-100 text-blue-700' : 'bg-white text-gray-700'}`}
+      onMouseDown={e => { e.preventDefault(); onClick(); }}
+      title={label}
+      tabIndex={-1}
+    >
+      {icon || label}
+    </button>
+  );
+
   return (
     <div className="flex-1 flex flex-col h-screen">
       {meeting ? (
         <div className="flex-1 flex flex-col">
+          {/* Sticky Toolbar */}
+          <div className="sticky top-0 z-10 bg-white border-b border-gray-200 flex items-center px-2 py-1" style={{minHeight: 44}}>
+            <ToolbarButton
+              onClick={() => editor?.chain().focus().toggleBold().run()}
+              active={editor?.isActive('bold')}
+              label="Bold"
+              icon={<b>B</b>}
+            />
+            <ToolbarButton
+              onClick={() => editor?.chain().focus().toggleItalic().run()}
+              active={editor?.isActive('italic')}
+              label="Italic"
+              icon={<i>I</i>}
+            />
+            <ToolbarButton
+              onClick={() => editor?.chain().focus().toggleUnderline().run()}
+              active={editor?.isActive('underline')}
+              label="Underline"
+              icon={<u>U</u>}
+            />
+            <ToolbarButton
+              onClick={() => editor?.chain().focus().toggleBulletList().run()}
+              active={editor?.isActive('bulletList')}
+              label="Bullet List"
+              icon={<span>&bull; List</span>}
+            />
+            <ToolbarButton
+              onClick={() => editor?.chain().focus().toggleOrderedList().run()}
+              active={editor?.isActive('orderedList')}
+              label="Numbered List"
+              icon={<span>1. List</span>}
+            />
+            <ToolbarButton
+              onClick={() => editor?.chain().focus().toggleTaskList().run()}
+              active={editor?.isActive('taskList')}
+              label="Checkbox"
+              icon={<span>&#9744;</span>}
+            />
+            <ToolbarButton
+              onClick={addImage}
+              label="Image"
+              icon={<span>&#128247;</span>}
+            />
+            <ToolbarButton
+              onClick={() => editor?.chain().focus().undo().run()}
+              label="Undo"
+              icon={<span>&#8630;</span>}
+            />
+            <ToolbarButton
+              onClick={() => editor?.chain().focus().redo().run()}
+              label="Redo"
+              icon={<span>&#8631;</span>}
+            />
+          </div>
           <div className="flex-1 overflow-y-auto p-4">
             <EditorContent editor={editor} />
           </div>
