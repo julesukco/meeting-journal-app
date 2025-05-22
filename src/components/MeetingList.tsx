@@ -220,10 +220,6 @@ export function MeetingList({
     // Insert the meeting at the calculated position
     newMeetings.splice(absoluteIndex, 0, updatedMeeting);
 
-    // Log the updated meeting for debugging
-    console.log('Updated meeting:', updatedMeeting);
-    console.log('New meetings order:', newMeetings);
-
     // Call onReorderMeetings with the new order
     if (onReorderMeetings) {
       onReorderMeetings(newMeetings);
