@@ -24,17 +24,22 @@ function stripHtmlTags(str: string) {
   return str.replace(/<[^>]*>/g, '');
 }
 
+function removeImageTags(html: string) {
+  return html.replace(/<img[^>]*>/gi, '');
+}
+
 export const SearchDialog: React.FC<SearchDialogProps> = ({ meetings, onSelect, onClose }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedMeetingIndex, setSelectedMeetingIndex] = useState(0);
   const [selectedMatchIndex, setSelectedMatchIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Find meetings with at least one match in title or content
+  // Find meetings with at least one match in title or content (excluding image tags in content)
   const matchingMeetings = meetings
     .map(meeting => {
       const titleMatches = getMatches(meeting.title, searchTerm);
-      const contentMatches = getMatches(meeting.content, searchTerm);
+      const cleanContent = removeImageTags(meeting.content);
+      const contentMatches = getMatches(cleanContent, searchTerm);
       return {
         meeting,
         titleMatches,
@@ -62,17 +67,18 @@ export const SearchDialog: React.FC<SearchDialogProps> = ({ meetings, onSelect, 
       });
     }
     // Content matches (show a snippet of context)
-    const contentMatches = getMatches(selectedMeeting.content, searchTerm);
+    const cleanContent = removeImageTags(selectedMeeting.content);
+    const contentMatches = getMatches(cleanContent, searchTerm);
     for (const m of contentMatches) {
       const contextStart = Math.max(0, m.start - 20);
-      const contextEnd = Math.min(selectedMeeting.content.length, m.end + 20);
+      const contextEnd = Math.min(cleanContent.length, m.end + 20);
       matchSnippets.push({
-        text: stripHtmlTags(selectedMeeting.content.substring(m.start, m.end)),
+        text: stripHtmlTags(cleanContent.substring(m.start, m.end)),
         start: m.start,
         end: m.end,
         isTitle: false,
-        before: stripHtmlTags(selectedMeeting.content.substring(contextStart, m.start)),
-        after: stripHtmlTags(selectedMeeting.content.substring(m.end, contextEnd)),
+        before: stripHtmlTags(cleanContent.substring(contextStart, m.start)),
+        after: stripHtmlTags(cleanContent.substring(m.end, contextEnd)),
       });
     }
   }
