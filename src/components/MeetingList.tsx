@@ -360,10 +360,8 @@ export function MeetingList({
                                 <div
                                   className="text-sm text-gray-800 flex-1 truncate cursor-pointer"
                                   onDoubleClick={() => {
-                                    if (!meeting.isDivider) {
-                                      setEditingMeetingId(meeting.id);
-                                      setEditingTitle(meeting.title);
-                                    }
+                                    setEditingMeetingId(meeting.id);
+                                    setEditingTitle(meeting.title);
                                   }}
                                   onClick={() => !meeting.isDivider && onSelectMeeting(meeting)}
                                 >
