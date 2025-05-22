@@ -161,7 +161,6 @@ export function MeetingList({
         } else {
           absoluteIndex = newMeetings.length;
         }
-        
         // Find the correct position within ungrouped
         let ungroupedCount = 0;
         for (let i = 0; i < absoluteIndex; i++) {
@@ -176,36 +175,32 @@ export function MeetingList({
       }
     } else {
       // Handle regular groups as before
+      let found = false;
       for (let i = 0; i < newMeetings.length; i++) {
         const currentMeeting = newMeetings[i];
-        
         // If we're starting a new group
         if (currentMeeting.group !== currentGroup) {
           currentGroup = currentMeeting.group || 'ungrouped';
           itemsInCurrentGroup = 0;
         }
-
         // If we've found the destination group and reached the target index
         if (currentGroup === destGroup && itemsInCurrentGroup === destination.index) {
           absoluteIndex = i;
+          found = true;
           break;
         }
-
         itemsInCurrentGroup++;
       }
-
-      // If we haven't found the position (e.g., adding to end of group)
-      if (absoluteIndex === 0 && destination.index > 0) {
-        // Find the last meeting in the destination group
-        const lastMeetingInGroup = [...newMeetings].reverse().find(m => m.group === destGroup);
-        if (lastMeetingInGroup) {
-          absoluteIndex = newMeetings.indexOf(lastMeetingInGroup) + 1;
+      // If group is empty or we haven't found the position (e.g., adding to end of group)
+      if (!found) {
+        // Find the index of the first meeting in the next group after destGroup
+        const nextGroupIndex = newMeetings.findIndex(m => {
+          return m.group && groups.indexOf(m.group) > groups.indexOf(destGroup);
+        });
+        if (nextGroupIndex !== -1) {
+          absoluteIndex = nextGroupIndex;
         } else {
-          // If group is empty, find where it should be inserted
-          absoluteIndex = newMeetings.findIndex(m => m.group && m.group > destGroup);
-          if (absoluteIndex === -1) {
-            absoluteIndex = newMeetings.length;
-          }
+          absoluteIndex = newMeetings.length;
         }
       }
     }
@@ -417,6 +412,11 @@ export function MeetingList({
                             )}
                           </Draggable>
                         ))}
+                        {((groupedMeetings[group] || []).length === 0) && (
+                          <div className="h-8 flex items-center justify-center text-gray-300 italic border border-dashed border-gray-200 rounded bg-gray-50">
+                            Drop here
+                          </div>
+                        )}
                         {provided.placeholder}
                       </div>
                     )}
