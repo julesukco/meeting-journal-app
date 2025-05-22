@@ -23,7 +23,7 @@
 
 .ProseMirror ul[data-type="taskList"] li {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   margin: 0.05em 0;
 }
 
@@ -32,19 +32,21 @@
   margin-right: 0.5em;
   user-select: none;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   height: 1.2em;
+  padding-top: 0.2em;
 }
 
 .ProseMirror ul[data-type="taskList"] li > div {
   flex: 1 1 auto;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   min-height: 1.2em;
 }
 
 .ProseMirror ul[data-type="taskList"] li > label input[type="checkbox"] {
   cursor: pointer;
+  margin-top: 0.1em;
 }
 
 .ProseMirror ul[data-type="taskList"] li p {
