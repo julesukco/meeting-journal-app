@@ -63,7 +63,6 @@ export function MeetingList({
   // Add state for new sub-divider input
   const [newSubDividerName, setNewSubDividerName] = useState('');
   const [showNewSubDividerInput, setShowNewSubDividerInput] = useState(false);
-  const [selectedGroupForSubDivider, setSelectedGroupForSubDivider] = useState<string | null>(null);
 
   // Sync groups to localStorage
   useEffect(() => {
@@ -142,11 +141,12 @@ export function MeetingList({
   }
 
   // Handle adding a new sub-divider
-  const handleNewSubDivider = (group: string) => {
+  const handleNewSubDivider = () => {
     if (newSubDividerName.trim()) {
+      // Add only to ungrouped section
       setSubDividers(prev => ({
         ...prev,
-        [group]: [...(prev[group] || []), newSubDividerName.trim()]
+        '': [newSubDividerName.trim(), ...(prev[''] || [])]
       }));
       setNewSubDividerName('');
       setShowNewSubDividerInput(false);
@@ -241,7 +241,6 @@ export function MeetingList({
           <button
             onClick={() => {
               setShowNewSubDividerInput(true);
-              setSelectedGroupForSubDivider(null);
             }}
             className="p-1 hover:bg-gray-200 rounded-full transition-colors"
             title="New Sub-divider"
@@ -288,52 +287,28 @@ export function MeetingList({
 
       {showNewSubDividerInput && (
         <div className="p-2 border-b border-gray-200">
-          <div className="flex flex-col gap-2">
-            <div className="flex gap-1">
-              <input
-                type="text"
-                value={newSubDividerName}
-                onChange={(e) => setNewSubDividerName(e.target.value)}
-                placeholder="New sub-divider name..."
-                className="flex-1 px-2 py-1 text-sm border rounded"
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && selectedGroupForSubDivider) {
-                    handleNewSubDivider(selectedGroupForSubDivider);
-                  } else if (e.key === 'Escape') {
-                    setShowNewSubDividerInput(false);
-                    setNewSubDividerName('');
-                    setSelectedGroupForSubDivider(null);
-                  }
-                }}
-              />
-              <button
-                onClick={() => {
-                  if (selectedGroupForSubDivider) {
-                    handleNewSubDivider(selectedGroupForSubDivider);
-                  }
-                }}
-                className="px-2 py-1 text-sm bg-blue-500 text-white rounded hover:bg-blue-600"
-                disabled={!selectedGroupForSubDivider}
-              >
-                Add
-              </button>
-            </div>
-            <div className="text-xs text-gray-500">Select a group:</div>
-            <div className="flex flex-wrap gap-1">
-              {sortedGroups.map((group) => (
-                <button
-                  key={group || 'ungrouped'}
-                  onClick={() => setSelectedGroupForSubDivider(group)}
-                  className={`px-2 py-1 text-xs rounded ${
-                    selectedGroupForSubDivider === group
-                      ? 'bg-blue-500 text-white'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
-                >
-                  {group || 'Ungrouped'}
-                </button>
-              ))}
-            </div>
+          <div className="flex gap-1">
+            <input
+              type="text"
+              value={newSubDividerName}
+              onChange={(e) => setNewSubDividerName(e.target.value)}
+              placeholder="New sub-divider name..."
+              className="flex-1 px-2 py-1 text-sm border rounded"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  handleNewSubDivider();
+                } else if (e.key === 'Escape') {
+                  setShowNewSubDividerInput(false);
+                  setNewSubDividerName('');
+                }
+              }}
+            />
+            <button
+              onClick={handleNewSubDivider}
+              className="px-2 py-1 text-sm bg-blue-500 text-white rounded hover:bg-blue-600"
+            >
+              Add
+            </button>
           </div>
         </div>
       )}
