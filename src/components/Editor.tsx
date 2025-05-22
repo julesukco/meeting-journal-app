@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import TaskList from '@tiptap/extension-task-list';
@@ -83,6 +83,7 @@ const Editor: React.FC<EditorProps> = ({
   processCompletedItems,
 }) => {
   const [editorReady, setEditorReady] = useState(false);
+  const editorRef = useRef<HTMLDivElement>(null);
 
   const editor = useEditor({
     extensions: [
@@ -122,6 +123,54 @@ const Editor: React.FC<EditorProps> = ({
     editorProps: {
       attributes: {
         class: 'prose prose-sm sm:prose lg:prose-lg xl:prose-2xl mx-auto focus:outline-none prose-p:my-0.5 prose-headings:my-1 prose-ul:my-0.5 prose-ol:my-0.5 prose-blockquote:my-1 prose-pre:my-1 prose-table:my-1 prose-li:my-0.5 prose-headings:leading-tight prose-p:leading-tight prose-li:leading-tight',
+      },
+      handlePaste(view, event, slice) {
+        const text = event.clipboardData?.getData('text/plain') || '';
+        const html = event.clipboardData?.getData('text/html') || '';
+        const files = event.clipboardData?.files;
+
+        // Handle pasted images (leave as is)
+        if (files && files.length > 0) return false;
+
+        // Handle HTML table
+        if (html && /<table[\s>]/i.test(html)) {
+          const parser = new DOMParser();
+          const doc = parser.parseFromString(html, 'text/html');
+          const table = doc.querySelector('table');
+          if (table) {
+            const rows = Array.from(table.querySelectorAll('tr')).map(tr =>
+              Array.from(tr.querySelectorAll('th,td')).map(cell => cell.textContent || '')
+            );
+            if (rows.length && editor) {
+              let htmlTable = '<table><tbody>';
+              for (const row of rows) {
+                htmlTable += '<tr>' + row.map(cell => `<td>${cell.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</td>`).join('') + '</tr>';
+              }
+              htmlTable += '</tbody></table>';
+              editor.commands.insertContent(htmlTable);
+              return true; // Tell TipTap we handled the paste
+            }
+          }
+          return true;
+        }
+
+        // Handle tabular plain text (tab-separated or CSV-like)
+        const isTabular = /\t/.test(text) && /\n/.test(text);
+        if (isTabular) {
+          const rows = text.trim().split(/\r?\n/).map(row => row.split(/\t/));
+          if (rows.length && editor) {
+            let htmlTable = '<table><tbody>';
+            for (const row of rows) {
+              htmlTable += '<tr>' + row.map(cell => `<td>${cell.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</td>`).join('') + '</tr>';
+            }
+            htmlTable += '</tbody></table>';
+            editor.commands.insertContent(htmlTable);
+            return true;
+          }
+          return true;
+        }
+        // Let TipTap handle all other pastes
+        return false;
       },
     },
   });
@@ -196,136 +245,6 @@ const Editor: React.FC<EditorProps> = ({
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [editor]);
-
-  // Handle paste events to capture markdown tables and images
-  useEffect(() => {
-    const handlePaste = (e: ClipboardEvent) => {
-      if (e.clipboardData) {
-        const text = e.clipboardData.getData('text/plain');
-        const html = e.clipboardData.getData('text/html');
-        const files = e.clipboardData.files;
-        console.log('[Paste Debug] Clipboard text:', text);
-        console.log('[Paste Debug] Clipboard HTML:', html);
-
-        // Handle pasted images
-        if (files && files.length > 0) {
-          const file = files[0];
-          if (file.type.startsWith('image/')) {
-            e.preventDefault();
-            const reader = new FileReader();
-            reader.onload = () => {
-              if (editor) {
-                editor.chain().focus().setImage({ src: reader.result as string }).run();
-              }
-            };
-            reader.readAsDataURL(file);
-            return;
-          }
-        }
-
-        // If HTML contains a table, parse and insert as a real TipTap table
-        if (html && /<table[\s>]/i.test(html)) {
-          e.preventDefault();
-          const parser = new DOMParser();
-          const doc = parser.parseFromString(html, 'text/html');
-          const table = doc.querySelector('table');
-          if (table) {
-            // Only process the first table, ignore all other content
-            const rows = Array.from(table.querySelectorAll('tr')).map(tr =>
-              Array.from(tr.querySelectorAll('th,td')).map(cell => {
-                // Extract text content from nested elements (e.g., <span>, <p>)
-                return cell.textContent || '';
-              })
-            );
-            if (rows.length && editor) {
-              // Build a TipTap table node as HTML
-              let htmlTable = '<table><tbody>';
-              for (const row of rows) {
-                htmlTable += '<tr>' + row.map(cell => `<td>${cell.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</td>`).join('') + '</tr>';
-              }
-              htmlTable += '</tbody></table>';
-              editor.commands.setContent(htmlTable, false); // Replace selection/content with just the table
-            }
-            return; // Prevent any other content from being inserted
-          }
-          return;
-        }
-
-        // Handle tabular plain text (tab-separated or CSV-like)
-        const isTabular = /\t/.test(text) && /\n/.test(text);
-        if (isTabular) {
-          e.preventDefault();
-          const rows = text.trim().split(/\r?\n/).map(row => row.split(/\t/));
-          if (rows.length && editor) {
-            editor.chain().focus().insertTable({ rows: rows.length, cols: rows[0].length, withHeaderRow: false }).run();
-            const { state, view } = editor;
-            const { tr } = state;
-            let tablePos: number | null = null;
-            state.doc.descendants((node, pos) => {
-              if (node.type.name === 'table' && tablePos === null) {
-                tablePos = pos;
-                return false;
-              }
-              return true;
-            });
-            if (tablePos !== null) {
-              let cellIndex = 0;
-              const tableNode: ProseMirrorNode | null = state.doc.nodeAt(tablePos);
-              if (tableNode) {
-                (tableNode as ProseMirrorNode).descendants((cell: ProseMirrorNode, cellPos: number, parent: ProseMirrorNode | null) => {
-                  if (cell.type.name === 'tableCell' || cell.type.name === 'tableHeader') {
-                    const row = Math.floor(cellIndex / rows[0].length);
-                    const col = cellIndex % rows[0].length;
-                    const text = rows[row]?.[col] || '';
-                    const cellType = cell.type;
-                    const content = text && text.length > 0 ? [state.schema.text(text)] : undefined;
-                    const newCell = cellType.createAndFill(cell.attrs, content);
-                    if (newCell) {
-                      tr.replaceWith(tablePos! + cellPos + 1, tablePos! + cellPos + 2, newCell);
-                    }
-                    cellIndex++;
-                  }
-                  return true;
-                });
-                view.dispatch(tr);
-              }
-            }
-          }
-          return;
-        }
-
-        // Handle URLs
-        const urlRegex = /^(https?:\/\/[^\s]+)$/;
-        if (urlRegex.test(text.trim())) {
-          e.preventDefault();
-          if (editor) {
-            editor.chain().focus().setLink({ href: text.trim() }).run();
-          }
-          return;
-        }
-
-        // Handle markdown tables
-        if (/^\s*\|(.|\n)*\|\s*$/m.test(text) && /\|\s*-+\s*\|/.test(text)) {
-          e.preventDefault();
-          // Convert markdown to HTML
-          const htmlOrPromise = marked.parse(text);
-          if (editor) {
-            const insertHtml = (html: string) => {
-              editor.commands.insertContent(html);
-            };
-            if (typeof htmlOrPromise === 'string') {
-              insertHtml(htmlOrPromise);
-            } else if (htmlOrPromise instanceof Promise) {
-              htmlOrPromise.then(insertHtml);
-            }
-          }
-        }
-      }
-    };
-
-    document.addEventListener('paste', handlePaste);
-    return () => document.removeEventListener('paste', handlePaste);
   }, [editor]);
 
   // Handle link clicks
@@ -413,7 +332,7 @@ const Editor: React.FC<EditorProps> = ({
   const inTable = editor?.isActive('table');
 
   return (
-    <div className="flex-1 flex flex-col h-screen">
+    <div className="flex-1 flex flex-col h-screen" ref={editorRef}>
       {meeting ? (
         <div className="flex-1 flex flex-col">
           {/* Sticky Toolbar Only */}
