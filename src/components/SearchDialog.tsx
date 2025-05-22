@@ -3,40 +3,104 @@ import { Meeting } from '../types';
 
 interface SearchDialogProps {
   meetings: Meeting[];
-  onSelect: (meeting: Meeting) => void;
+  onSelect: (meeting: Meeting, matchIndex: number, match: {start: number, end: number}) => void;
   onClose: () => void;
+}
+
+function getMatches(text: string, search: string) {
+  if (!search) return [];
+  const regex = new RegExp(search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+  const matches = [];
+  let match;
+  while ((match = regex.exec(text))) {
+    matches.push({ start: match.index, end: match.index + match[0].length });
+    // Prevent infinite loop for zero-length matches
+    if (match.index === regex.lastIndex) regex.lastIndex++;
+  }
+  return matches;
 }
 
 export const SearchDialog: React.FC<SearchDialogProps> = ({ meetings, onSelect, onClose }) => {
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedIndex, setSelectedIndex] = useState(0);
+  const [selectedMeetingIndex, setSelectedMeetingIndex] = useState(0);
+  const [selectedMatchIndex, setSelectedMatchIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const filteredMeetings = meetings.filter(meeting =>
-    meeting.title.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // Find meetings with at least one match in title or content
+  const matchingMeetings = meetings
+    .map(meeting => {
+      const titleMatches = getMatches(meeting.title, searchTerm);
+      const contentMatches = getMatches(meeting.content, searchTerm);
+      return {
+        meeting,
+        titleMatches,
+        contentMatches,
+        totalMatches: titleMatches.length + contentMatches.length,
+      };
+    })
+    .filter(m => m.totalMatches > 0);
+
+  const selectedMeeting = matchingMeetings[selectedMeetingIndex]?.meeting;
+  const matchSnippets: {text: string, start: number, end: number, isTitle: boolean}[] = [];
+  if (selectedMeeting && searchTerm) {
+    // Title matches
+    const titleMatches = getMatches(selectedMeeting.title, searchTerm);
+    for (const m of titleMatches) {
+      matchSnippets.push({
+        text: selectedMeeting.title.substring(m.start, m.end),
+        start: m.start,
+        end: m.end,
+        isTitle: true,
+      });
+    }
+    // Content matches (show a snippet of context)
+    const contentMatches = getMatches(selectedMeeting.content, searchTerm);
+    for (const m of contentMatches) {
+      const contextStart = Math.max(0, m.start - 20);
+      const contextEnd = Math.min(selectedMeeting.content.length, m.end + 20);
+      matchSnippets.push({
+        text: selectedMeeting.content.substring(m.start, m.end),
+        start: m.start,
+        end: m.end,
+        isTitle: false,
+      });
+    }
+  }
 
   useEffect(() => {
-    // Focus the input when the dialog opens
     inputRef.current?.focus();
   }, []);
+
+  // Reset match index when meeting changes
+  useEffect(() => {
+    setSelectedMatchIndex(0);
+  }, [selectedMeetingIndex]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     switch (e.key) {
       case 'ArrowDown':
         e.preventDefault();
-        setSelectedIndex(prev => 
-          prev < filteredMeetings.length - 1 ? prev + 1 : prev
-        );
+        if (document.activeElement === inputRef.current) {
+          setSelectedMeetingIndex(prev => Math.min(prev + 1, matchingMeetings.length - 1));
+        } else {
+          setSelectedMatchIndex(prev => Math.min(prev + 1, matchSnippets.length - 1));
+        }
         break;
       case 'ArrowUp':
         e.preventDefault();
-        setSelectedIndex(prev => prev > 0 ? prev - 1 : prev);
+        if (document.activeElement === inputRef.current) {
+          setSelectedMeetingIndex(prev => Math.max(prev - 1, 0));
+        } else {
+          setSelectedMatchIndex(prev => Math.max(prev - 1, 0));
+        }
         break;
       case 'Enter':
         e.preventDefault();
-        if (filteredMeetings[selectedIndex]) {
-          onSelect(filteredMeetings[selectedIndex]);
+        if (selectedMeeting && matchSnippets[selectedMatchIndex]) {
+          onSelect(selectedMeeting, selectedMatchIndex, {
+            start: matchSnippets[selectedMatchIndex].start,
+            end: matchSnippets[selectedMatchIndex].end,
+          });
         }
         break;
       case 'Escape':
@@ -48,7 +112,7 @@ export const SearchDialog: React.FC<SearchDialogProps> = ({ meetings, onSelect, 
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl mx-4">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl mx-4 flex flex-col">
         <div className="p-4">
           <input
             ref={inputRef}
@@ -56,33 +120,58 @@ export const SearchDialog: React.FC<SearchDialogProps> = ({ meetings, onSelect, 
             value={searchTerm}
             onChange={(e) => {
               setSearchTerm(e.target.value);
-              setSelectedIndex(0);
+              setSelectedMeetingIndex(0);
+              setSelectedMatchIndex(0);
             }}
             onKeyDown={handleKeyDown}
             placeholder="Search meetings..."
             className="w-full px-4 py-2 text-lg border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
-        <div className="max-h-96 overflow-y-auto">
-          {filteredMeetings.map((meeting, index) => (
-            <div
-              key={meeting.id}
-              className={`px-4 py-2 cursor-pointer ${
-                index === selectedIndex ? 'bg-blue-50' : 'hover:bg-gray-50'
-              }`}
-              onClick={() => onSelect(meeting)}
-            >
-              <div className="font-medium">{meeting.title}</div>
-              <div className="text-sm text-gray-500">
-                {new Date(meeting.date).toLocaleDateString()}
+        <div className="flex flex-1 min-h-0">
+          {/* Meetings list */}
+          <div className="w-1/3 border-r max-h-96 overflow-y-auto">
+            {matchingMeetings.length === 0 && (
+              <div className="px-4 py-2 text-gray-500">No meetings found</div>
+            )}
+            {matchingMeetings.map((m, idx) => (
+              <div
+                key={m.meeting.id}
+                className={`px-4 py-2 cursor-pointer ${idx === selectedMeetingIndex ? 'bg-blue-50' : 'hover:bg-gray-50'}`}
+                onClick={() => {
+                  setSelectedMeetingIndex(idx);
+                  setSelectedMatchIndex(0);
+                }}
+              >
+                <div className="font-medium">{m.meeting.title}</div>
+                <div className="text-sm text-gray-500">{new Date(m.meeting.date).toLocaleDateString()}</div>
+                <div className="text-xs text-blue-600">{m.totalMatches} match{m.totalMatches !== 1 ? 'es' : ''}</div>
               </div>
-            </div>
-          ))}
-          {filteredMeetings.length === 0 && (
-            <div className="px-4 py-2 text-gray-500">
-              No meetings found
-            </div>
-          )}
+            ))}
+          </div>
+          {/* Matches list */}
+          <div className="flex-1 max-h-96 overflow-y-auto">
+            {selectedMeeting && matchSnippets.length > 0 ? (
+              matchSnippets.map((snippet, idx) => (
+                <div
+                  key={idx}
+                  className={`px-4 py-2 cursor-pointer ${idx === selectedMatchIndex ? 'bg-blue-100' : 'hover:bg-gray-50'}`}
+                  onClick={() => {
+                    onSelect(selectedMeeting, idx, { start: snippet.start, end: snippet.end });
+                  }}
+                >
+                  <span className="font-mono bg-yellow-100 px-1 rounded">
+                    {snippet.text}
+                  </span>
+                  <span className="ml-2 text-xs text-gray-500">
+                    {snippet.isTitle ? 'Title' : 'Content'}
+                  </span>
+                </div>
+              ))
+            ) : (
+              <div className="px-4 py-2 text-gray-500">No matches in this meeting</div>
+            )}
+          </div>
         </div>
       </div>
     </div>
