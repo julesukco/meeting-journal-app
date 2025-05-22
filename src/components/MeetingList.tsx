@@ -150,16 +150,19 @@ export function MeetingList({
 
     // If destination is ungrouped, we need to handle it specially
     if (destGroup === 'ungrouped') {
-      // Find the first meeting that has a group
-      const firstGroupedMeeting = newMeetings.find(m => m.group);
-      if (firstGroupedMeeting) {
-        absoluteIndex = newMeetings.indexOf(firstGroupedMeeting);
+      if (destination.index === 0) {
+        // If we're adding to the first position, always insert at the start
+        absoluteIndex = 0;
       } else {
-        absoluteIndex = newMeetings.length;
-      }
-      
-      // If we're not adding to the end, find the correct position within ungrouped
-      if (destination.index > 0) {
+        // Find the first meeting that has a group
+        const firstGroupedMeeting = newMeetings.find(m => m.group);
+        if (firstGroupedMeeting) {
+          absoluteIndex = newMeetings.indexOf(firstGroupedMeeting);
+        } else {
+          absoluteIndex = newMeetings.length;
+        }
+        
+        // Find the correct position within ungrouped
         let ungroupedCount = 0;
         for (let i = 0; i < absoluteIndex; i++) {
           if (!newMeetings[i].group) {
