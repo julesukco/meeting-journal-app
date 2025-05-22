@@ -18,6 +18,7 @@ import { Meeting } from '../types';
 import { marked } from 'marked';
 import '../styles/editor.css';
 import { Extension } from '@tiptap/core';
+import { Node as ProseMirrorNode } from 'prosemirror-model';
 
 interface EditorProps {
   meeting: Meeting | null;
@@ -102,6 +103,12 @@ const Editor: React.FC<EditorProps> = ({
         },
       }),
       ResizableImage,
+      Table.configure({
+        resizable: true,
+      }),
+      TableRow,
+      TableCell,
+      TableHeader,
     ],
     content: '',
     onUpdate: ({ editor }) => {
@@ -196,7 +203,10 @@ const Editor: React.FC<EditorProps> = ({
     const handlePaste = (e: ClipboardEvent) => {
       if (e.clipboardData) {
         const text = e.clipboardData.getData('text/plain');
+        const html = e.clipboardData.getData('text/html');
         const files = e.clipboardData.files;
+        console.log('[Paste Debug] Clipboard text:', text);
+        console.log('[Paste Debug] Clipboard HTML:', html);
 
         // Handle pasted images
         if (files && files.length > 0) {
@@ -212,6 +222,77 @@ const Editor: React.FC<EditorProps> = ({
             reader.readAsDataURL(file);
             return;
           }
+        }
+
+        // If HTML contains a table, parse and insert as a real TipTap table
+        if (html && /<table[\s>]/i.test(html)) {
+          e.preventDefault();
+          const parser = new DOMParser();
+          const doc = parser.parseFromString(html, 'text/html');
+          const table = doc.querySelector('table');
+          if (table) {
+            // Only process the first table, ignore all other content
+            const rows = Array.from(table.querySelectorAll('tr')).map(tr =>
+              Array.from(tr.querySelectorAll('th,td')).map(cell => {
+                // Extract text content from nested elements (e.g., <span>, <p>)
+                return cell.textContent || '';
+              })
+            );
+            if (rows.length && editor) {
+              // Build a TipTap table node as HTML
+              let htmlTable = '<table><tbody>';
+              for (const row of rows) {
+                htmlTable += '<tr>' + row.map(cell => `<td>${cell.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</td>`).join('') + '</tr>';
+              }
+              htmlTable += '</tbody></table>';
+              editor.commands.setContent(htmlTable, false); // Replace selection/content with just the table
+            }
+            return; // Prevent any other content from being inserted
+          }
+          return;
+        }
+
+        // Handle tabular plain text (tab-separated or CSV-like)
+        const isTabular = /\t/.test(text) && /\n/.test(text);
+        if (isTabular) {
+          e.preventDefault();
+          const rows = text.trim().split(/\r?\n/).map(row => row.split(/\t/));
+          if (rows.length && editor) {
+            editor.chain().focus().insertTable({ rows: rows.length, cols: rows[0].length, withHeaderRow: false }).run();
+            const { state, view } = editor;
+            const { tr } = state;
+            let tablePos: number | null = null;
+            state.doc.descendants((node, pos) => {
+              if (node.type.name === 'table' && tablePos === null) {
+                tablePos = pos;
+                return false;
+              }
+              return true;
+            });
+            if (tablePos !== null) {
+              let cellIndex = 0;
+              const tableNode: ProseMirrorNode | null = state.doc.nodeAt(tablePos);
+              if (tableNode) {
+                (tableNode as ProseMirrorNode).descendants((cell: ProseMirrorNode, cellPos: number, parent: ProseMirrorNode | null) => {
+                  if (cell.type.name === 'tableCell' || cell.type.name === 'tableHeader') {
+                    const row = Math.floor(cellIndex / rows[0].length);
+                    const col = cellIndex % rows[0].length;
+                    const text = rows[row]?.[col] || '';
+                    const cellType = cell.type;
+                    const content = text && text.length > 0 ? [state.schema.text(text)] : undefined;
+                    const newCell = cellType.createAndFill(cell.attrs, content);
+                    if (newCell) {
+                      tr.replaceWith(tablePos! + cellPos + 1, tablePos! + cellPos + 2, newCell);
+                    }
+                    cellIndex++;
+                  }
+                  return true;
+                });
+                view.dispatch(tr);
+              }
+            }
+          }
+          return;
         }
 
         // Handle URLs
