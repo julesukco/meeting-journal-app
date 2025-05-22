@@ -254,20 +254,30 @@ export function MeetingList({
                         type="text"
                         value={editingTitle}
                         onChange={e => setEditingTitle(e.target.value)}
-                        onBlur={() => {
-                          if (editingTitle.trim() && editingTitle !== meeting.title) {
-                            onUpdateMeeting({ ...meeting, title: editingTitle.trim() });
-                          }
-                          setEditingMeetingId(null);
-                        }}
                         onKeyDown={e => {
                           if (e.key === 'Enter') {
                             if (editingTitle.trim() && editingTitle !== meeting.title) {
                               onUpdateMeeting({ ...meeting, title: editingTitle.trim() });
                             }
                             setEditingMeetingId(null);
+                            // Focus the editor after updating the title
+                            const editorElement = document.querySelector('.ProseMirror');
+                            if (editorElement) {
+                              (editorElement as HTMLElement).focus();
+                            }
                           } else if (e.key === 'Escape') {
                             setEditingMeetingId(null);
+                          }
+                        }}
+                        onBlur={() => {
+                          if (editingTitle.trim() && editingTitle !== meeting.title) {
+                            onUpdateMeeting({ ...meeting, title: editingTitle.trim() });
+                          }
+                          setEditingMeetingId(null);
+                          // Focus the editor after updating the title
+                          const editorElement = document.querySelector('.ProseMirror');
+                          if (editorElement) {
+                            (editorElement as HTMLElement).focus();
                           }
                         }}
                         className="w-full px-1 py-0.5 border border-blue-300 rounded text-sm"
