@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { CalendarDays, Plus, ArrowUp, ArrowDown, ChevronDown, ChevronRight, FolderPlus } from 'lucide-react';
+import { CalendarDays, Plus, ArrowUp, ArrowDown, ChevronDown, ChevronRight, FolderPlus, GripVertical } from 'lucide-react';
 import { Meeting } from '../types';
+import { DragDropContext, Droppable, Draggable, DropResult, DraggableProvided, DraggableStateSnapshot, DroppableProvided } from 'react-beautiful-dnd';
 
 interface MeetingListProps {
   meetings: Meeting[];
@@ -9,6 +10,7 @@ interface MeetingListProps {
   onNewMeeting: () => void;
   onReorderMeeting?: (meetingId: string, direction: 'up' | 'down') => void;
   onUpdateMeeting: (meeting: Meeting) => void;
+  onReorderMeetings?: (newOrder: Meeting[]) => void;
 }
 
 export function MeetingList({
@@ -18,6 +20,7 @@ export function MeetingList({
   onNewMeeting,
   onReorderMeeting,
   onUpdateMeeting,
+  onReorderMeetings,
 }: MeetingListProps) {
   const EXPANDED_KEY = 'expandedMeetingGroups';
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(() => {
@@ -109,27 +112,33 @@ export function MeetingList({
     };
   };
 
-  // Custom reorder handler for cross-group movement
-  const handleReorder = (meeting: Meeting, direction: 'up' | 'down', index: number, group: string) => {
-    const { prev, next } = getAdjacentGroups(group);
-    if (direction === 'up' && index === 0 && prev !== null) {
-      // Move to end of previous group
-      onUpdateMeeting({ ...meeting, group: prev || undefined });
-      return;
-    }
-    if (
-      direction === 'down' &&
-      groupedMeetings[group] &&
-      index === groupedMeetings[group].length - 1 &&
-      next !== null
-    ) {
-      // Move to start of next group
-      onUpdateMeeting({ ...meeting, group: next || undefined });
-      return;
-    }
-    // Otherwise, use the normal reorder
-    if (onReorderMeeting) {
-      onReorderMeeting(meeting.id, direction);
+  // Helper to reorder an array
+  function reorder<T>(list: T[], startIndex: number, endIndex: number): T[] {
+    const result = Array.from(list);
+    const [removed] = result.splice(startIndex, 1);
+    result.splice(endIndex, 0, removed);
+    return result;
+  }
+
+  // Handle drag end for meetings within a group
+  const onDragEnd = (result: DropResult, group: string) => {
+    if (!result.destination) return;
+    const sourceIdx = result.source.index;
+    const destIdx = result.destination.index;
+    if (sourceIdx === destIdx) return;
+    const groupMeetings = groupedMeetings[group] || [];
+    const reordered = reorder(groupMeetings, sourceIdx, destIdx);
+    if (onReorderMeetings) {
+      // Rebuild the full meetings array with the reordered group
+      const newMeetings: Meeting[] = [];
+      for (const g of sortedGroups) {
+        if (g === group) {
+          newMeetings.push(...reordered);
+        } else {
+          newMeetings.push(...(groupedMeetings[g] || []));
+        }
+      }
+      onReorderMeetings(newMeetings);
     }
   };
 
@@ -148,7 +157,7 @@ export function MeetingList({
   }, [editingMeetingId]);
 
   return (
-    <div className="w-64 bg-gray-50 border-r border-gray-200 flex flex-col h-screen">
+    <div className="w-64 bg-gray-50 border-r border-gray-200 flex flex-col">
       <div className="flex items-center justify-between p-2 border-b border-gray-200">
         <h2 className="text-sm font-semibold text-gray-700">Meetings</h2>
         <div className="flex gap-1">
@@ -197,7 +206,7 @@ export function MeetingList({
         </div>
       )}
 
-      <div className="overflow-y-auto flex-1">
+      <div>
         {sortedGroups.map((group) => (
           <div key={group || 'ungrouped'}>
             {group && (
@@ -230,104 +239,81 @@ export function MeetingList({
                 </button>
               </div>
             )}
-            {expandedGroups.has(group) && (groupedMeetings[group] || []).map((meeting, index) => (
-              <div
-                key={meeting.id}
-                className={`px-2 py-1.5 border-b border-gray-100 cursor-pointer ${
-                  selectedMeeting?.id === meeting.id
-                    ? 'bg-blue-50'
-                    : 'hover:bg-gray-100'
-                }`}
-              >
-                <div className="flex items-center gap-1">
-                  <div 
-                    className="text-sm text-gray-800 flex-1 truncate cursor-pointer"
-                    onDoubleClick={() => {
-                      setEditingMeetingId(meeting.id);
-                      setEditingTitle(meeting.title);
-                    }}
-                    onClick={() => onSelectMeeting(meeting)}
-                  >
-                    {editingMeetingId === meeting.id ? (
-                      <input
-                        ref={inputRef}
-                        type="text"
-                        value={editingTitle}
-                        onChange={e => setEditingTitle(e.target.value)}
-                        onKeyDown={e => {
-                          if (e.key === 'Enter') {
-                            if (editingTitle.trim() && editingTitle !== meeting.title) {
-                              onUpdateMeeting({ ...meeting, title: editingTitle.trim() });
-                            }
-                            setEditingMeetingId(null);
-                            // Focus the editor after updating the title
-                            const editorElement = document.querySelector('.ProseMirror');
-                            if (editorElement) {
-                              (editorElement as HTMLElement).focus();
-                            }
-                          } else if (e.key === 'Escape') {
-                            setEditingMeetingId(null);
-                          }
-                        }}
-                        onBlur={() => {
-                          if (editingTitle.trim() && editingTitle !== meeting.title) {
-                            onUpdateMeeting({ ...meeting, title: editingTitle.trim() });
-                          }
-                          setEditingMeetingId(null);
-                          // Focus the editor after updating the title
-                          const editorElement = document.querySelector('.ProseMirror');
-                          if (editorElement) {
-                            (editorElement as HTMLElement).focus();
-                          }
-                        }}
-                        className="w-full px-1 py-0.5 border border-blue-300 rounded text-sm"
-                        onClick={e => e.stopPropagation()}
-                      />
-                    ) : (
-                      meeting.title
-                    )}
-                  </div>
-                  {onReorderMeeting && (
-                    <div className="flex flex-col ml-1 shrink-0">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleReorder(meeting, 'up', index, group);
-                        }}
-                        disabled={index === 0 && sortedGroups.indexOf(group) === 0}
-                        className={`p-0.5 rounded ${
-                          index === 0 && sortedGroups.indexOf(group) === 0
-                            ? 'text-gray-300 cursor-not-allowed'
-                            : 'text-gray-500 hover:bg-gray-200'
-                        }`}
-                        title="Move up"
-                      >
-                        <ArrowUp className="w-3 h-3" />
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleReorder(meeting, 'down', index, group);
-                        }}
-                        disabled={
-                          index === (groupedMeetings[group]?.length || 0) - 1 &&
-                          sortedGroups.indexOf(group) === sortedGroups.length - 1
-                        }
-                        className={`p-0.5 rounded ${
-                          index === (groupedMeetings[group]?.length || 0) - 1 &&
-                          sortedGroups.indexOf(group) === sortedGroups.length - 1
-                            ? 'text-gray-300 cursor-not-allowed'
-                            : 'text-gray-500 hover:bg-gray-200'
-                        }`}
-                        title="Move down"
-                      >
-                        <ArrowDown className="w-3 h-3" />
-                      </button>
+            {expandedGroups.has(group) && (
+              <DragDropContext onDragEnd={(result: DropResult) => onDragEnd(result, group)}>
+                <Droppable droppableId={`droppable-${group}`}>
+                  {(provided: DroppableProvided) => (
+                    <div ref={provided.innerRef} {...provided.droppableProps} className="overflow-y-auto flex-1">
+                      {(groupedMeetings[group] || []).map((meeting, index) => (
+                        <Draggable key={meeting.id} draggableId={meeting.id} index={index}>
+                          {(provided: DraggableProvided, snapshot: DraggableStateSnapshot) => (
+                            <div
+                              ref={provided.innerRef}
+                              {...provided.draggableProps}
+                              className={`px-2 py-1.5 border-b border-gray-100 cursor-pointer flex items-center gap-1 ${
+                                selectedMeeting?.id === meeting.id
+                                  ? 'bg-blue-50'
+                                  : 'hover:bg-gray-100'
+                              } ${snapshot.isDragging ? 'bg-yellow-50' : ''}`}
+                            >
+                              <span {...provided.dragHandleProps} className="pr-1 cursor-grab text-gray-400 hover:text-gray-600"><GripVertical size={16} /></span>
+                              <div
+                                className="text-sm text-gray-800 flex-1 truncate cursor-pointer"
+                                onDoubleClick={() => {
+                                  setEditingMeetingId(meeting.id);
+                                  setEditingTitle(meeting.title);
+                                }}
+                                onClick={() => onSelectMeeting(meeting)}
+                              >
+                                {editingMeetingId === meeting.id ? (
+                                  <input
+                                    ref={inputRef}
+                                    type="text"
+                                    value={editingTitle}
+                                    onChange={e => setEditingTitle(e.target.value)}
+                                    onKeyDown={e => {
+                                      if (e.key === 'Enter') {
+                                        if (editingTitle.trim() && editingTitle !== meeting.title) {
+                                          onUpdateMeeting({ ...meeting, title: editingTitle.trim() });
+                                        }
+                                        setEditingMeetingId(null);
+                                        // Focus the editor after updating the title
+                                        const editorElement = document.querySelector('.ProseMirror');
+                                        if (editorElement) {
+                                          (editorElement as HTMLElement).focus();
+                                        }
+                                      } else if (e.key === 'Escape') {
+                                        setEditingMeetingId(null);
+                                      }
+                                    }}
+                                    onBlur={() => {
+                                      if (editingTitle.trim() && editingTitle !== meeting.title) {
+                                        onUpdateMeeting({ ...meeting, title: editingTitle.trim() });
+                                      }
+                                      setEditingMeetingId(null);
+                                      // Focus the editor after updating the title
+                                      const editorElement = document.querySelector('.ProseMirror');
+                                      if (editorElement) {
+                                        (editorElement as HTMLElement).focus();
+                                      }
+                                    }}
+                                    className="w-full px-1 py-0.5 border border-blue-300 rounded text-sm"
+                                    onClick={e => e.stopPropagation()}
+                                  />
+                                ) : (
+                                  meeting.title
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </Draggable>
+                      ))}
+                      {provided.placeholder}
                     </div>
                   )}
-                </div>
-              </div>
-            ))}
+                </Droppable>
+              </DragDropContext>
+            )}
           </div>
         ))}
       </div>

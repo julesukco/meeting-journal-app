@@ -47,19 +47,9 @@ export function MeetingListScreen() {
     navigate('/meeting/new');
   };
 
-  const handleReorderMeeting = async (meetingId: string, direction: 'up' | 'down') => {
-    const updatedMeetings = [...meetings];
-    const index = updatedMeetings.findIndex(m => m.id === meetingId);
-    if (index === -1) return;
-
-    if (direction === 'up' && index > 0) {
-      [updatedMeetings[index], updatedMeetings[index - 1]] = [updatedMeetings[index - 1], updatedMeetings[index]];
-    } else if (direction === 'down' && index < updatedMeetings.length - 1) {
-      [updatedMeetings[index], updatedMeetings[index + 1]] = [updatedMeetings[index + 1], updatedMeetings[index]];
-    }
-
-    setMeetings(updatedMeetings);
-    await saveMeetings(updatedMeetings);
+  const handleReorderMeetings = async (newOrder: Meeting[]) => {
+    setMeetings(newOrder);
+    await saveMeetings(newOrder);
   };
 
   const saveMeetings = async (meetingsToSave: Meeting[]) => {
@@ -78,8 +68,8 @@ export function MeetingListScreen() {
         selectedMeeting={selectedMeeting}
         onSelectMeeting={handleSelectMeeting}
         onNewMeeting={handleNewMeeting}
-        onReorderMeeting={handleReorderMeeting}
         onUpdateMeeting={handleUpdateMeeting}
+        onReorderMeetings={handleReorderMeetings}
       />
       <div className="flex flex-col h-screen bg-white">
         <div className="flex items-center justify-between p-4 border-b border-gray-200">

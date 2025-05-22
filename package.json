@@ -35,6 +35,7 @@
     "marked": "^15.0.11",
     "quill-image-resize-module-react": "^3.0.0",
     "react": "^18.3.1",
+    "react-beautiful-dnd": "^13.1.1",
     "react-dom": "^18.3.1",
     "react-quill": "^2.0.0",
     "react-router-dom": "^7.6.0"
@@ -42,6 +43,7 @@
   "devDependencies": {
     "@eslint/js": "^9.9.1",
     "@types/react": "^18.3.5",
+    "@types/react-beautiful-dnd": "^13.1.8",
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^4.3.1",
     "autoprefixer": "^10.4.18",

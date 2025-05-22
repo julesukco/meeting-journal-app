@@ -190,23 +190,9 @@ function App() {
     return processedContent;
   }, [actionItems, selectedMeeting]);
 
-  const handleReorderMeeting = (meetingId: string, direction: 'up' | 'down') => {
-    const meetingIndex = meetings.findIndex(m => m.id === meetingId);
-    if (meetingIndex === -1) return;
-    
-    const newMeetings = [...meetings];
-    
-    if (direction === 'up' && meetingIndex > 0) {
-      // Swap with the previous meeting
-      [newMeetings[meetingIndex], newMeetings[meetingIndex - 1]] = 
-      [newMeetings[meetingIndex - 1], newMeetings[meetingIndex]];
-    } else if (direction === 'down' && meetingIndex < meetings.length - 1) {
-      // Swap with the next meeting
-      [newMeetings[meetingIndex], newMeetings[meetingIndex + 1]] = 
-      [newMeetings[meetingIndex + 1], newMeetings[meetingIndex]];
-    }
-    
-    setMeetings(newMeetings);
+  const handleReorderMeetings = (newOrder: Meeting[]) => {
+    setMeetings(newOrder);
+    saveMeetings(newOrder);
   };
 
   const handleExport = async () => {
@@ -264,14 +250,14 @@ function App() {
           element={
             <div className="flex h-screen">
               {isLeftNavVisible && (
-                <div className="h-screen overflow-y-auto">
+                <div>
                   <MeetingList
                     meetings={meetings}
                     selectedMeeting={selectedMeeting}
                     onSelectMeeting={handleMeetingSelect}
                     onNewMeeting={handleNewMeeting}
-                    onReorderMeeting={handleReorderMeeting}
                     onUpdateMeeting={handleUpdateMeeting}
+                    onReorderMeetings={handleReorderMeetings}
                   />
                 </div>
               )}
