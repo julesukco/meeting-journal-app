@@ -2,14 +2,17 @@
 .ProseMirror {
   min-height: 100%;
   outline: none;
-  font-family: 'Inter', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+  font-family: 'Inter', 'Proxima Nova', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   font-size: 1.05rem;
-  line-height: 1.3;
-  color: #222;
+  line-height: 1.2;
+  color: #000;
+  font-feature-settings: "ss01" on, "ss02" on, "ss03" on, "liga" on;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 .ProseMirror p {
-  margin: 0.15em 0;
+  margin: 0.1em 0;
 }
 
 /* Task list styles */
@@ -21,7 +24,7 @@
 .ProseMirror ul[data-type="taskList"] li {
   display: flex;
   align-items: center;
-  margin: 0.1em 0;
+  margin: 0.05em 0;
 }
 
 .ProseMirror ul[data-type="taskList"] li > label {
@@ -52,7 +55,7 @@
 .ProseMirror ul,
 .ProseMirror ol {
   padding-left: 1.5em;
-  margin: 0.15em 0;
+  margin: 0.1em 0;
 }
 
 .ProseMirror ul {
@@ -83,7 +86,7 @@
 .ProseMirror img {
   max-width: 100%;
   height: auto;
-  margin: 0.25em 0;
+  margin: 0.2em 0;
   border-radius: 0.375em;
 }
 
@@ -100,18 +103,18 @@
 /* Blockquote styles */
 .ProseMirror blockquote {
   border-left: 3px solid #e5e7eb;
-  margin: 0.25em 0;
+  margin: 0.2em 0;
   padding-left: 1em;
-  color: #6b7280;
+  color: #1f2937;
 }
 
 /* Code block styles */
 .ProseMirror pre {
   background-color: #f3f4f6;
-  padding: 0.4em 1em;
+  padding: 0.3em 1em;
   border-radius: 0.375em;
   overflow-x: auto;
-  margin: 0.25em 0;
+  margin: 0.2em 0;
 }
 
 .ProseMirror code {
