@@ -107,7 +107,7 @@ const Editor: React.FC<EditorProps> = ({
     },
     editorProps: {
       attributes: {
-        class: 'prose prose-sm sm:prose lg:prose-lg xl:prose-2xl mx-auto focus:outline-none',
+        class: 'prose prose-sm sm:prose lg:prose-lg xl:prose-2xl mx-auto focus:outline-none prose-p:my-0.5 prose-headings:my-1 prose-ul:my-0.5 prose-ol:my-0.5 prose-blockquote:my-1 prose-pre:my-1 prose-table:my-1 prose-li:my-0.5',
       },
     },
   });
