@@ -136,13 +136,77 @@ export function MeetingList({
     // Create a new array of meetings
     const newMeetings = [...meetings];
     
-    // Find the meeting being moved
-    const meeting = newMeetings.find(m => m.id === draggableId);
-    if (!meeting) return;
+    // Find the meeting being moved by its ID
+    const meetingIndex = newMeetings.findIndex(m => m.id === draggableId);
+    if (meetingIndex === -1) return;
 
     // Remove the meeting from its current position
-    const [movedMeeting] = newMeetings.splice(source.index, 1);
+    const [movedMeeting] = newMeetings.splice(meetingIndex, 1);
     
+    // Calculate the absolute index in the full array
+    let absoluteIndex = 0;
+    let currentGroup = '';
+    let itemsInCurrentGroup = 0;
+
+    // If destination is ungrouped, we need to handle it specially
+    if (destGroup === 'ungrouped') {
+      // Find the first meeting that has a group
+      const firstGroupedMeeting = newMeetings.find(m => m.group);
+      if (firstGroupedMeeting) {
+        absoluteIndex = newMeetings.indexOf(firstGroupedMeeting);
+      } else {
+        absoluteIndex = newMeetings.length;
+      }
+      
+      // If we're not adding to the end, find the correct position within ungrouped
+      if (destination.index > 0) {
+        let ungroupedCount = 0;
+        for (let i = 0; i < absoluteIndex; i++) {
+          if (!newMeetings[i].group) {
+            ungroupedCount++;
+            if (ungroupedCount === destination.index) {
+              absoluteIndex = i + 1;
+              break;
+            }
+          }
+        }
+      }
+    } else {
+      // Handle regular groups as before
+      for (let i = 0; i < newMeetings.length; i++) {
+        const currentMeeting = newMeetings[i];
+        
+        // If we're starting a new group
+        if (currentMeeting.group !== currentGroup) {
+          currentGroup = currentMeeting.group || 'ungrouped';
+          itemsInCurrentGroup = 0;
+        }
+
+        // If we've found the destination group and reached the target index
+        if (currentGroup === destGroup && itemsInCurrentGroup === destination.index) {
+          absoluteIndex = i;
+          break;
+        }
+
+        itemsInCurrentGroup++;
+      }
+
+      // If we haven't found the position (e.g., adding to end of group)
+      if (absoluteIndex === 0 && destination.index > 0) {
+        // Find the last meeting in the destination group
+        const lastMeetingInGroup = [...newMeetings].reverse().find(m => m.group === destGroup);
+        if (lastMeetingInGroup) {
+          absoluteIndex = newMeetings.indexOf(lastMeetingInGroup) + 1;
+        } else {
+          // If group is empty, find where it should be inserted
+          absoluteIndex = newMeetings.findIndex(m => m.group && m.group > destGroup);
+          if (absoluteIndex === -1) {
+            absoluteIndex = newMeetings.length;
+          }
+        }
+      }
+    }
+
     // Update the meeting's group
     const updatedMeeting = {
       ...movedMeeting,
@@ -150,8 +214,8 @@ export function MeetingList({
       updatedAt: Date.now()
     };
 
-    // Insert the meeting at the new position
-    newMeetings.splice(destination.index, 0, updatedMeeting);
+    // Insert the meeting at the calculated position
+    newMeetings.splice(absoluteIndex, 0, updatedMeeting);
 
     // Log the updated meeting for debugging
     console.log('Updated meeting:', updatedMeeting);
