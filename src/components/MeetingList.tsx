@@ -346,12 +346,12 @@ export function MeetingList({
                               <div
                                 ref={provided.innerRef}
                                 {...provided.draggableProps}
-                                className={`px-2 py-1.5 border-b border-gray-100 cursor-pointer flex items-center gap-1 ${
+                                className={`px-2 py-1 cursor-pointer flex items-center gap-1 ${
                                   meeting.isDivider 
-                                    ? 'text-xs font-medium text-gray-500 bg-gray-100'
+                                    ? 'text-[11px] font-semibold text-blue-700 bg-blue-50 rounded-md'
                                     : selectedMeeting?.id === meeting.id
                                       ? 'bg-blue-50'
-                                      : 'hover:bg-gray-100'
+                                      : 'hover:bg-gray-100 border-b border-gray-100'
                                 } ${snapshot.isDragging ? 'bg-yellow-50' : ''}`}
                               >
                                 <span {...provided.dragHandleProps} className="pr-1 cursor-grab text-gray-400 hover:text-gray-600">
@@ -359,6 +359,7 @@ export function MeetingList({
                                 </span>
                                 <div
                                   className="text-sm text-gray-800 flex-1 truncate cursor-pointer"
+                                  style={meeting.isDivider ? { fontSize: '10px' } : {}}
                                   onDoubleClick={() => {
                                     setEditingMeetingId(meeting.id);
                                     setEditingTitle(meeting.title);
