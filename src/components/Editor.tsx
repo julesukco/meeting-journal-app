@@ -35,6 +35,46 @@ const TaskListTabIndent = Extension.create({
   },
 });
 
+// Custom extension for image resizing
+const ResizableImage = Extension.create({
+  name: 'resizableImage',
+  addGlobalAttributes() {
+    return [
+      {
+        types: ['image'],
+        attributes: {
+          width: {
+            default: null,
+            parseHTML: element => element.getAttribute('width'),
+            renderHTML: attributes => {
+              if (!attributes.width) {
+                return {};
+              }
+              return {
+                width: attributes.width,
+                style: `width: ${attributes.width}px`,
+              };
+            },
+          },
+          height: {
+            default: null,
+            parseHTML: element => element.getAttribute('height'),
+            renderHTML: attributes => {
+              if (!attributes.height) {
+                return {};
+              }
+              return {
+                height: attributes.height,
+                style: `height: ${attributes.height}px`,
+              };
+            },
+          },
+        },
+      },
+    ];
+  },
+});
+
 const Editor: React.FC<EditorProps> = ({ 
   meeting, 
   onUpdateMeeting,
@@ -51,9 +91,10 @@ const Editor: React.FC<EditorProps> = ({
       Image.configure({
         allowBase64: true,
         HTMLAttributes: {
-          class: 'max-w-full h-auto',
+          class: 'max-w-full h-auto cursor-pointer',
         },
       }),
+      ResizableImage,
     ],
     content: '',
     onUpdate: ({ editor }) => {
@@ -187,6 +228,50 @@ const Editor: React.FC<EditorProps> = ({
 
     document.addEventListener('paste', handlePaste);
     return () => document.removeEventListener('paste', handlePaste);
+  }, [editor]);
+
+  // Add image resize handlers
+  useEffect(() => {
+    const handleImageResize = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (target.tagName === 'IMG') {
+        const img = target as HTMLImageElement;
+        const startX = e.clientX;
+        const startY = e.clientY;
+        const startWidth = img.offsetWidth;
+        const startHeight = img.offsetHeight;
+        const aspectRatio = startWidth / startHeight;
+
+        const handleMouseMove = (e: MouseEvent) => {
+          const deltaX = e.clientX - startX;
+          const deltaY = e.clientY - startY;
+          const newWidth = Math.max(50, startWidth + deltaX);
+          const newHeight = newWidth / aspectRatio;
+
+          img.style.width = `${newWidth}px`;
+          img.style.height = `${newHeight}px`;
+        };
+
+        const handleMouseUp = () => {
+          document.removeEventListener('mousemove', handleMouseMove);
+          document.removeEventListener('mouseup', handleMouseUp);
+          
+          // Update the image attributes in the editor
+          if (editor) {
+            editor.chain().focus().updateAttributes('image', {
+              width: img.offsetWidth,
+              height: img.offsetHeight,
+            }).run();
+          }
+        };
+
+        document.addEventListener('mousemove', handleMouseMove);
+        document.addEventListener('mouseup', handleMouseUp);
+      }
+    };
+
+    document.addEventListener('mousedown', handleImageResize);
+    return () => document.removeEventListener('mousedown', handleImageResize);
   }, [editor]);
 
   // Toolbar button helper
