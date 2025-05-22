@@ -48,6 +48,12 @@ const Editor: React.FC<EditorProps> = ({
       TaskList,
       TaskItem.configure({ nested: true }),
       TaskListTabIndent,
+      Image.configure({
+        allowBase64: true,
+        HTMLAttributes: {
+          class: 'max-w-full h-auto',
+        },
+      }),
     ],
     content: '',
     onUpdate: ({ editor }) => {
