@@ -20,6 +20,10 @@ function getMatches(text: string, search: string) {
   return matches;
 }
 
+function stripHtmlTags(str: string) {
+  return str.replace(/<[^>]*>/g, '');
+}
+
 export const SearchDialog: React.FC<SearchDialogProps> = ({ meetings, onSelect, onClose }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedMeetingIndex, setSelectedMeetingIndex] = useState(0);
@@ -41,16 +45,20 @@ export const SearchDialog: React.FC<SearchDialogProps> = ({ meetings, onSelect, 
     .filter(m => m.totalMatches > 0);
 
   const selectedMeeting = matchingMeetings[selectedMeetingIndex]?.meeting;
-  const matchSnippets: {text: string, start: number, end: number, isTitle: boolean}[] = [];
+  const matchSnippets: {text: string, start: number, end: number, isTitle: boolean, before: string, after: string}[] = [];
   if (selectedMeeting && searchTerm) {
     // Title matches
     const titleMatches = getMatches(selectedMeeting.title, searchTerm);
     for (const m of titleMatches) {
+      const contextStart = Math.max(0, m.start - 20);
+      const contextEnd = Math.min(selectedMeeting.title.length, m.end + 20);
       matchSnippets.push({
-        text: selectedMeeting.title.substring(m.start, m.end),
+        text: stripHtmlTags(selectedMeeting.title.substring(m.start, m.end)),
         start: m.start,
         end: m.end,
         isTitle: true,
+        before: stripHtmlTags(selectedMeeting.title.substring(contextStart, m.start)),
+        after: stripHtmlTags(selectedMeeting.title.substring(m.end, contextEnd)),
       });
     }
     // Content matches (show a snippet of context)
@@ -59,10 +67,12 @@ export const SearchDialog: React.FC<SearchDialogProps> = ({ meetings, onSelect, 
       const contextStart = Math.max(0, m.start - 20);
       const contextEnd = Math.min(selectedMeeting.content.length, m.end + 20);
       matchSnippets.push({
-        text: selectedMeeting.content.substring(m.start, m.end),
+        text: stripHtmlTags(selectedMeeting.content.substring(m.start, m.end)),
         start: m.start,
         end: m.end,
         isTitle: false,
+        before: stripHtmlTags(selectedMeeting.content.substring(contextStart, m.start)),
+        after: stripHtmlTags(selectedMeeting.content.substring(m.end, contextEnd)),
       });
     }
   }
@@ -160,9 +170,11 @@ export const SearchDialog: React.FC<SearchDialogProps> = ({ meetings, onSelect, 
                     onSelect(selectedMeeting, idx, { start: snippet.start, end: snippet.end });
                   }}
                 >
+                  <span className="text-gray-400 font-mono">{snippet.before}</span>
                   <span className="font-mono bg-yellow-100 px-1 rounded">
                     {snippet.text}
                   </span>
+                  <span className="text-gray-400 font-mono">{snippet.after}</span>
                   <span className="ml-2 text-xs text-gray-500">
                     {snippet.isTitle ? 'Title' : 'Content'}
                   </span>
