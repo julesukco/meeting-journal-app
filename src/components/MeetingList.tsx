@@ -48,22 +48,6 @@ export function MeetingList({
     return saved ? JSON.parse(saved) : [];
   });
 
-  // Add state for sub-dividers
-  const SUBDIVIDERS_KEY = 'meetingSubDividers';
-  const [subDividers, setSubDividers] = useState<Record<string, string[]>>(() => {
-    const saved = localStorage.getItem(SUBDIVIDERS_KEY);
-    return saved ? JSON.parse(saved) : {};
-  });
-
-  // Sync sub-dividers to localStorage
-  useEffect(() => {
-    localStorage.setItem(SUBDIVIDERS_KEY, JSON.stringify(subDividers));
-  }, [subDividers]);
-
-  // Add state for new sub-divider input
-  const [newSubDividerName, setNewSubDividerName] = useState('');
-  const [showNewSubDividerInput, setShowNewSubDividerInput] = useState(false);
-
   // Sync groups to localStorage
   useEffect(() => {
     localStorage.setItem(GROUPS_KEY, JSON.stringify(groups));
@@ -75,19 +59,15 @@ export function MeetingList({
     setGroups(prev => Array.from(new Set([...prev, ...meetingGroups])));
   }, [meetings]);
 
-  // Group meetings by their group and sub-divider
+  // Group meetings by their group
   const groupedMeetings = meetings.reduce((acc, meeting) => {
     const group = meeting.group || '';
-    const subDivider = meeting.subDivider || '';
     if (!acc[group]) {
-      acc[group] = {};
+      acc[group] = [];
     }
-    if (!acc[group][subDivider]) {
-      acc[group][subDivider] = [];
-    }
-    acc[group][subDivider].push(meeting);
+    acc[group].push(meeting);
     return acc;
-  }, {} as Record<string, Record<string, Meeting[]>>);
+  }, {} as Record<string, Meeting[]>);
 
   // Move group up or down
   const moveGroup = (group: string, direction: 'up' | 'down') => {
@@ -123,90 +103,61 @@ export function MeetingList({
     setShowNewGroupInput(false);
   };
 
-  // Helper to get the previous and next group
-  const getAdjacentGroups = (group: string) => {
-    const idx = groups.indexOf(group);
-    return {
-      prev: idx > 0 ? groups[idx - 1] : null,
-      next: idx < groups.length - 1 ? groups[idx + 1] : null,
+  // Handle adding a new divider
+  const handleNewDivider = () => {
+    const now = Date.now();
+    const newDivider: Meeting = {
+      id: `divider-${now}`,
+      title: 'New Divider',
+      date: new Date().toLocaleDateString(),
+      content: '',
+      notes: '',
+      attendees: [],
+      createdAt: now,
+      updatedAt: now,
+      isDivider: true,
+      group: '' // Add to ungrouped section by default
     };
-  };
-
-  // Helper to reorder an array
-  function reorder<T>(list: T[], startIndex: number, endIndex: number): T[] {
-    const result = Array.from(list);
-    const [removed] = result.splice(startIndex, 1);
-    result.splice(endIndex, 0, removed);
-    return result;
-  }
-
-  // Handle adding a new sub-divider
-  const handleNewSubDivider = () => {
-    if (newSubDividerName.trim()) {
-      // Add only to ungrouped section
-      setSubDividers(prev => ({
-        ...prev,
-        '': [newSubDividerName.trim(), ...(prev[''] || [])]
-      }));
-      setNewSubDividerName('');
-      setShowNewSubDividerInput(false);
+    
+    if (onReorderMeetings) {
+      const newMeetings = [...meetings, newDivider];
+      onReorderMeetings(newMeetings);
     }
   };
 
-  // Handle removing a sub-divider
-  const handleRemoveSubDivider = (group: string, subDivider: string) => {
-    setSubDividers(prev => ({
-      ...prev,
-      [group]: (prev[group] || []).filter(sd => sd !== subDivider)
-    }));
-    // Update meetings that were under this sub-divider
-    meetings.forEach(meeting => {
-      if (meeting.group === group && meeting.subDivider === subDivider) {
-        onUpdateMeeting({ ...meeting, subDivider: '' });
-      }
-    });
-  };
-
-  // Handle drag end for meetings, allowing cross-group and cross-sub-divider movement
+  // Handle drag end for meetings
   const onDragEnd = (result: DropResult) => {
     const { source, destination, draggableId } = result;
     if (!destination) return;
     
-    const [sourceGroup, sourceSubDivider] = source.droppableId.split('|');
-    const [destGroup, destSubDivider] = destination.droppableId.split('|');
-    
-    if (sourceGroup === destGroup && sourceSubDivider === destSubDivider && source.index === destination.index) return;
+    const [sourceGroup, destGroup] = [source.droppableId, destination.droppableId];
+    if (sourceGroup === destGroup && source.index === destination.index) return;
 
-    // Clone grouped meetings
-    const newGroupedMeetings: Record<string, Record<string, Meeting[]>> = {};
-    for (const g of sortedGroups) {
-      newGroupedMeetings[g] = {};
-      for (const sd of ['', ...(subDividers[g] || [])]) {
-        newGroupedMeetings[g][sd] = [...(groupedMeetings[g]?.[sd] || [])];
-      }
-    }
-
-    // Remove from source
-    const [moved] = newGroupedMeetings[sourceGroup][sourceSubDivider].splice(source.index, 1);
+    // Create a new array of meetings
+    const newMeetings = [...meetings];
     
-    // Update group and sub-divider properties if moved to a different group/sub-divider
-    if (sourceGroup !== destGroup) {
-      moved.group = destGroup === '' ? undefined : destGroup;
-    }
-    if (sourceSubDivider !== destSubDivider) {
-      moved.subDivider = destSubDivider === '' ? undefined : destSubDivider;
-    }
-    
-    // Insert into destination
-    newGroupedMeetings[destGroup][destSubDivider].splice(destination.index, 0, moved);
+    // Find the meeting being moved
+    const meeting = newMeetings.find(m => m.id === draggableId);
+    if (!meeting) return;
 
-    // Rebuild flat meetings array
-    const newMeetings: Meeting[] = [];
-    for (const g of sortedGroups) {
-      for (const sd of ['', ...(subDividers[g] || [])]) {
-        newMeetings.push(...(newGroupedMeetings[g]?.[sd] || []));
-      }
-    }
+    // Remove the meeting from its current position
+    const [movedMeeting] = newMeetings.splice(source.index, 1);
+    
+    // Update the meeting's group
+    const updatedMeeting = {
+      ...movedMeeting,
+      group: destGroup === 'ungrouped' ? undefined : destGroup,
+      updatedAt: Date.now()
+    };
+
+    // Insert the meeting at the new position
+    newMeetings.splice(destination.index, 0, updatedMeeting);
+
+    // Log the updated meeting for debugging
+    console.log('Updated meeting:', updatedMeeting);
+    console.log('New meetings order:', newMeetings);
+
+    // Call onReorderMeetings with the new order
     if (onReorderMeetings) {
       onReorderMeetings(newMeetings);
     }
@@ -239,11 +190,9 @@ export function MeetingList({
             <FolderPlus className="w-4 h-4 text-gray-600" />
           </button>
           <button
-            onClick={() => {
-              setShowNewSubDividerInput(true);
-            }}
+            onClick={handleNewDivider}
             className="p-1 hover:bg-gray-200 rounded-full transition-colors"
-            title="New Sub-divider"
+            title="New Divider"
           >
             <Tag className="w-4 h-4 text-gray-600" />
           </button>
@@ -277,34 +226,6 @@ export function MeetingList({
             />
             <button
               onClick={handleNewGroup}
-              className="px-2 py-1 text-sm bg-blue-500 text-white rounded hover:bg-blue-600"
-            >
-              Add
-            </button>
-          </div>
-        </div>
-      )}
-
-      {showNewSubDividerInput && (
-        <div className="p-2 border-b border-gray-200">
-          <div className="flex gap-1">
-            <input
-              type="text"
-              value={newSubDividerName}
-              onChange={(e) => setNewSubDividerName(e.target.value)}
-              placeholder="New sub-divider name..."
-              className="flex-1 px-2 py-1 text-sm border rounded"
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  handleNewSubDivider();
-                } else if (e.key === 'Escape') {
-                  setShowNewSubDividerInput(false);
-                  setNewSubDividerName('');
-                }
-              }}
-            />
-            <button
-              onClick={handleNewSubDivider}
               className="px-2 py-1 text-sm bg-blue-500 text-white rounded hover:bg-blue-600"
             >
               Add
@@ -349,85 +270,44 @@ export function MeetingList({
               )}
               {expandedGroups.has(group) && (
                 <div className="space-y-1">
-                  {/* Sub-dividers and their meetings */}
-                  {['', ...(subDividers[group] || [])].map((subDivider, subDividerIndex) => (
-                    <Droppable key={`${group}|${subDivider}`} droppableId={`${group}|${subDivider}`}>
-                      {(provided: DroppableProvided) => (
-                        <div ref={provided.innerRef} {...provided.droppableProps}>
-                          {subDivider && (
-                            <Draggable
-                              draggableId={`subdivider-${group}-${subDivider}`}
-                              index={subDividerIndex - 1} // -1 because we want to skip the empty string at index 0
-                            >
-                              {(provided: DraggableProvided, snapshot: DraggableStateSnapshot) => (
-                                <div
-                                  ref={provided.innerRef}
-                                  {...provided.draggableProps}
-                                  className={`px-2 py-1 text-xs font-medium text-gray-500 bg-gray-100 flex items-center justify-between ${
-                                    snapshot.isDragging ? 'bg-yellow-50' : ''
-                                  }`}
-                                >
-                                  <div className="flex items-center gap-1">
-                                    <span {...provided.dragHandleProps} className="cursor-grab text-gray-400 hover:text-gray-600">
-                                      <GripVertical size={12} />
-                                    </span>
-                                    <span>{subDivider}</span>
-                                  </div>
-                                  <button
-                                    onClick={() => handleRemoveSubDivider(group, subDivider)}
-                                    className="text-gray-400 hover:text-red-500"
-                                    title="Remove sub-divider"
-                                  >
-                                    ×
-                                  </button>
-                                </div>
-                              )}
-                            </Draggable>
-                          )}
-                          {(groupedMeetings[group]?.[subDivider] || []).map((meeting, index) => (
-                            <Draggable key={meeting.id} draggableId={meeting.id} index={index}>
-                              {(provided: DraggableProvided, snapshot: DraggableStateSnapshot) => (
-                                <div
-                                  ref={provided.innerRef}
-                                  {...provided.draggableProps}
-                                  className={`px-2 py-1.5 border-b border-gray-100 cursor-pointer flex items-center gap-1 ${
-                                    selectedMeeting?.id === meeting.id
+                  <Droppable key={group || 'ungrouped'} droppableId={group || 'ungrouped'}>
+                    {(provided: DroppableProvided) => (
+                      <div ref={provided.innerRef} {...provided.droppableProps}>
+                        {(groupedMeetings[group] || []).map((meeting, index) => (
+                          <Draggable key={meeting.id} draggableId={meeting.id} index={index}>
+                            {(provided: DraggableProvided, snapshot: DraggableStateSnapshot) => (
+                              <div
+                                ref={provided.innerRef}
+                                {...provided.draggableProps}
+                                className={`px-2 py-1.5 border-b border-gray-100 cursor-pointer flex items-center gap-1 ${
+                                  meeting.isDivider 
+                                    ? 'text-xs font-medium text-gray-500 bg-gray-100'
+                                    : selectedMeeting?.id === meeting.id
                                       ? 'bg-blue-50'
                                       : 'hover:bg-gray-100'
-                                  } ${snapshot.isDragging ? 'bg-yellow-50' : ''}`}
-                                >
-                                  <span {...provided.dragHandleProps} className="pr-1 cursor-grab text-gray-400 hover:text-gray-600">
-                                    <GripVertical size={16} />
-                                  </span>
-                                  <div
-                                    className="text-sm text-gray-800 flex-1 truncate cursor-pointer"
-                                    onDoubleClick={() => {
+                                } ${snapshot.isDragging ? 'bg-yellow-50' : ''}`}
+                              >
+                                <span {...provided.dragHandleProps} className="pr-1 cursor-grab text-gray-400 hover:text-gray-600">
+                                  <GripVertical size={meeting.isDivider ? 12 : 16} />
+                                </span>
+                                <div
+                                  className="text-sm text-gray-800 flex-1 truncate cursor-pointer"
+                                  onDoubleClick={() => {
+                                    if (!meeting.isDivider) {
                                       setEditingMeetingId(meeting.id);
                                       setEditingTitle(meeting.title);
-                                    }}
-                                    onClick={() => onSelectMeeting(meeting)}
-                                  >
-                                    {editingMeetingId === meeting.id ? (
-                                      <input
-                                        ref={inputRef}
-                                        type="text"
-                                        value={editingTitle}
-                                        onChange={e => setEditingTitle(e.target.value)}
-                                        onKeyDown={e => {
-                                          if (e.key === 'Enter') {
-                                            if (editingTitle.trim() && editingTitle !== meeting.title) {
-                                              onUpdateMeeting({ ...meeting, title: editingTitle.trim() });
-                                            }
-                                            setEditingMeetingId(null);
-                                            const editorElement = document.querySelector('.ProseMirror');
-                                            if (editorElement) {
-                                              (editorElement as HTMLElement).focus();
-                                            }
-                                          } else if (e.key === 'Escape') {
-                                            setEditingMeetingId(null);
-                                          }
-                                        }}
-                                        onBlur={() => {
+                                    }
+                                  }}
+                                  onClick={() => !meeting.isDivider && onSelectMeeting(meeting)}
+                                >
+                                  {editingMeetingId === meeting.id ? (
+                                    <input
+                                      ref={inputRef}
+                                      type="text"
+                                      value={editingTitle}
+                                      onChange={e => setEditingTitle(e.target.value)}
+                                      onKeyDown={e => {
+                                        if (e.key === 'Enter') {
                                           if (editingTitle.trim() && editingTitle !== meeting.title) {
                                             onUpdateMeeting({ ...meeting, title: editingTitle.trim() });
                                           }
@@ -436,23 +316,49 @@ export function MeetingList({
                                           if (editorElement) {
                                             (editorElement as HTMLElement).focus();
                                           }
-                                        }}
-                                        className="w-full px-1 py-0.5 border border-blue-300 rounded text-sm"
-                                        onClick={e => e.stopPropagation()}
-                                      />
-                                    ) : (
-                                      meeting.title
-                                    )}
-                                  </div>
+                                        } else if (e.key === 'Escape') {
+                                          setEditingMeetingId(null);
+                                        }
+                                      }}
+                                      onBlur={() => {
+                                        if (editingTitle.trim() && editingTitle !== meeting.title) {
+                                          onUpdateMeeting({ ...meeting, title: editingTitle.trim() });
+                                        }
+                                        setEditingMeetingId(null);
+                                        const editorElement = document.querySelector('.ProseMirror');
+                                        if (editorElement) {
+                                          (editorElement as HTMLElement).focus();
+                                        }
+                                      }}
+                                      className="w-full px-1 py-0.5 border border-blue-300 rounded text-sm"
+                                      onClick={e => e.stopPropagation()}
+                                    />
+                                  ) : (
+                                    meeting.title
+                                  )}
                                 </div>
-                              )}
-                            </Draggable>
-                          ))}
-                          {provided.placeholder}
-                        </div>
-                      )}
-                    </Droppable>
-                  ))}
+                                {meeting.isDivider && (
+                                  <button
+                                    onClick={() => {
+                                      const newMeetings = meetings.filter(m => m.id !== meeting.id);
+                                      if (onReorderMeetings) {
+                                        onReorderMeetings(newMeetings);
+                                      }
+                                    }}
+                                    className="text-gray-400 hover:text-red-500"
+                                    title="Remove divider"
+                                  >
+                                    ×
+                                  </button>
+                                )}
+                              </div>
+                            )}
+                          </Draggable>
+                        ))}
+                        {provided.placeholder}
+                      </div>
+                    )}
+                  </Droppable>
                 </div>
               )}
             </div>
