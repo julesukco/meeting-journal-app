@@ -120,24 +120,35 @@ export function MeetingList({
     return result;
   }
 
-  // Handle drag end for meetings within a group
-  const onDragEnd = (result: DropResult, group: string) => {
-    if (!result.destination) return;
-    const sourceIdx = result.source.index;
-    const destIdx = result.destination.index;
-    if (sourceIdx === destIdx) return;
-    const groupMeetings = groupedMeetings[group] || [];
-    const reordered = reorder(groupMeetings, sourceIdx, destIdx);
+  // Handle drag end for meetings, allowing cross-group movement
+  const onDragEnd = (result: DropResult) => {
+    const { source, destination, draggableId } = result;
+    if (!destination) return;
+    const sourceGroup = source.droppableId.replace('droppable-', '');
+    const destGroup = destination.droppableId.replace('droppable-', '');
+    if (sourceGroup === destGroup && source.index === destination.index) return;
+
+    // Clone grouped meetings
+    const newGroupedMeetings: Record<string, Meeting[]> = {};
+    for (const g of sortedGroups) {
+      newGroupedMeetings[g] = [...(groupedMeetings[g] || [])];
+    }
+
+    // Remove from source
+    const [moved] = newGroupedMeetings[sourceGroup].splice(source.index, 1);
+    // Update group property if moved to a different group
+    if (sourceGroup !== destGroup) {
+      moved.group = destGroup === '' ? undefined : destGroup;
+    }
+    // Insert into destination
+    newGroupedMeetings[destGroup].splice(destination.index, 0, moved);
+
+    // Rebuild flat meetings array
+    const newMeetings: Meeting[] = [];
+    for (const g of sortedGroups) {
+      newMeetings.push(...(newGroupedMeetings[g] || []));
+    }
     if (onReorderMeetings) {
-      // Rebuild the full meetings array with the reordered group
-      const newMeetings: Meeting[] = [];
-      for (const g of sortedGroups) {
-        if (g === group) {
-          newMeetings.push(...reordered);
-        } else {
-          newMeetings.push(...(groupedMeetings[g] || []));
-        }
-      }
       onReorderMeetings(newMeetings);
     }
   };
@@ -206,7 +217,7 @@ export function MeetingList({
         </div>
       )}
 
-      <div>
+      <DragDropContext onDragEnd={onDragEnd}>
         {sortedGroups.map((group) => (
           <div key={group || 'ungrouped'}>
             {group && (
@@ -240,53 +251,38 @@ export function MeetingList({
               </div>
             )}
             {expandedGroups.has(group) && (
-              <DragDropContext onDragEnd={(result: DropResult) => onDragEnd(result, group)}>
-                <Droppable droppableId={`droppable-${group}`}>
-                  {(provided: DroppableProvided) => (
-                    <div ref={provided.innerRef} {...provided.droppableProps} className="overflow-y-auto flex-1">
-                      {(groupedMeetings[group] || []).map((meeting, index) => (
-                        <Draggable key={meeting.id} draggableId={meeting.id} index={index}>
-                          {(provided: DraggableProvided, snapshot: DraggableStateSnapshot) => (
+              <Droppable droppableId={`droppable-${group}`}>
+                {(provided: DroppableProvided) => (
+                  <div ref={provided.innerRef} {...provided.droppableProps} className="overflow-y-auto flex-1">
+                    {(groupedMeetings[group] || []).map((meeting, index) => (
+                      <Draggable key={meeting.id} draggableId={meeting.id} index={index}>
+                        {(provided: DraggableProvided, snapshot: DraggableStateSnapshot) => (
+                          <div
+                            ref={provided.innerRef}
+                            {...provided.draggableProps}
+                            className={`px-2 py-1.5 border-b border-gray-100 cursor-pointer flex items-center gap-1 ${
+                              selectedMeeting?.id === meeting.id
+                                ? 'bg-blue-50'
+                                : 'hover:bg-gray-100'
+                            } ${snapshot.isDragging ? 'bg-yellow-50' : ''}`}
+                          >
+                            <span {...provided.dragHandleProps} className="pr-1 cursor-grab text-gray-400 hover:text-gray-600"><GripVertical size={16} /></span>
                             <div
-                              ref={provided.innerRef}
-                              {...provided.draggableProps}
-                              className={`px-2 py-1.5 border-b border-gray-100 cursor-pointer flex items-center gap-1 ${
-                                selectedMeeting?.id === meeting.id
-                                  ? 'bg-blue-50'
-                                  : 'hover:bg-gray-100'
-                              } ${snapshot.isDragging ? 'bg-yellow-50' : ''}`}
+                              className="text-sm text-gray-800 flex-1 truncate cursor-pointer"
+                              onDoubleClick={() => {
+                                setEditingMeetingId(meeting.id);
+                                setEditingTitle(meeting.title);
+                              }}
+                              onClick={() => onSelectMeeting(meeting)}
                             >
-                              <span {...provided.dragHandleProps} className="pr-1 cursor-grab text-gray-400 hover:text-gray-600"><GripVertical size={16} /></span>
-                              <div
-                                className="text-sm text-gray-800 flex-1 truncate cursor-pointer"
-                                onDoubleClick={() => {
-                                  setEditingMeetingId(meeting.id);
-                                  setEditingTitle(meeting.title);
-                                }}
-                                onClick={() => onSelectMeeting(meeting)}
-                              >
-                                {editingMeetingId === meeting.id ? (
-                                  <input
-                                    ref={inputRef}
-                                    type="text"
-                                    value={editingTitle}
-                                    onChange={e => setEditingTitle(e.target.value)}
-                                    onKeyDown={e => {
-                                      if (e.key === 'Enter') {
-                                        if (editingTitle.trim() && editingTitle !== meeting.title) {
-                                          onUpdateMeeting({ ...meeting, title: editingTitle.trim() });
-                                        }
-                                        setEditingMeetingId(null);
-                                        // Focus the editor after updating the title
-                                        const editorElement = document.querySelector('.ProseMirror');
-                                        if (editorElement) {
-                                          (editorElement as HTMLElement).focus();
-                                        }
-                                      } else if (e.key === 'Escape') {
-                                        setEditingMeetingId(null);
-                                      }
-                                    }}
-                                    onBlur={() => {
+                              {editingMeetingId === meeting.id ? (
+                                <input
+                                  ref={inputRef}
+                                  type="text"
+                                  value={editingTitle}
+                                  onChange={e => setEditingTitle(e.target.value)}
+                                  onKeyDown={e => {
+                                    if (e.key === 'Enter') {
                                       if (editingTitle.trim() && editingTitle !== meeting.title) {
                                         onUpdateMeeting({ ...meeting, title: editingTitle.trim() });
                                       }
@@ -296,27 +292,40 @@ export function MeetingList({
                                       if (editorElement) {
                                         (editorElement as HTMLElement).focus();
                                       }
-                                    }}
-                                    className="w-full px-1 py-0.5 border border-blue-300 rounded text-sm"
-                                    onClick={e => e.stopPropagation()}
-                                  />
-                                ) : (
-                                  meeting.title
-                                )}
-                              </div>
+                                    } else if (e.key === 'Escape') {
+                                      setEditingMeetingId(null);
+                                    }
+                                  }}
+                                  onBlur={() => {
+                                    if (editingTitle.trim() && editingTitle !== meeting.title) {
+                                      onUpdateMeeting({ ...meeting, title: editingTitle.trim() });
+                                    }
+                                    setEditingMeetingId(null);
+                                    // Focus the editor after updating the title
+                                    const editorElement = document.querySelector('.ProseMirror');
+                                    if (editorElement) {
+                                      (editorElement as HTMLElement).focus();
+                                    }
+                                  }}
+                                  className="w-full px-1 py-0.5 border border-blue-300 rounded text-sm"
+                                  onClick={e => e.stopPropagation()}
+                                />
+                              ) : (
+                                meeting.title
+                              )}
                             </div>
-                          )}
-                        </Draggable>
-                      ))}
-                      {provided.placeholder}
-                    </div>
-                  )}
-                </Droppable>
-              </DragDropContext>
+                          </div>
+                        )}
+                      </Draggable>
+                    ))}
+                    {provided.placeholder}
+                  </div>
+                )}
+              </Droppable>
             )}
           </div>
         ))}
-      </div>
+      </DragDropContext>
     </div>
   );
 }
