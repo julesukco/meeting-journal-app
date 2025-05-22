@@ -6,6 +6,9 @@ export interface Meeting {
   attendees: string[];
   content: string;
   group?: string; // Optional group name for organizing meetings
+  subDivider?: string; // Optional sub-divider name for organizing meetings within groups
+  createdAt: number;
+  updatedAt: number;
 }
 
 export interface ActionItem {

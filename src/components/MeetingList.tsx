@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { CalendarDays, Plus, ArrowUp, ArrowDown, ChevronDown, ChevronRight, FolderPlus, GripVertical } from 'lucide-react';
+import { CalendarDays, Plus, ArrowUp, ArrowDown, ChevronDown, ChevronRight, FolderPlus, GripVertical, Tag } from 'lucide-react';
 import { Meeting } from '../types';
 import { DragDropContext, Droppable, Draggable, DropResult, DraggableProvided, DraggableStateSnapshot, DroppableProvided } from 'react-beautiful-dnd';
 
@@ -48,6 +48,23 @@ export function MeetingList({
     return saved ? JSON.parse(saved) : [];
   });
 
+  // Add state for sub-dividers
+  const SUBDIVIDERS_KEY = 'meetingSubDividers';
+  const [subDividers, setSubDividers] = useState<Record<string, string[]>>(() => {
+    const saved = localStorage.getItem(SUBDIVIDERS_KEY);
+    return saved ? JSON.parse(saved) : {};
+  });
+
+  // Sync sub-dividers to localStorage
+  useEffect(() => {
+    localStorage.setItem(SUBDIVIDERS_KEY, JSON.stringify(subDividers));
+  }, [subDividers]);
+
+  // Add state for new sub-divider input
+  const [newSubDividerName, setNewSubDividerName] = useState('');
+  const [showNewSubDividerInput, setShowNewSubDividerInput] = useState(false);
+  const [selectedGroupForSubDivider, setSelectedGroupForSubDivider] = useState<string | null>(null);
+
   // Sync groups to localStorage
   useEffect(() => {
     localStorage.setItem(GROUPS_KEY, JSON.stringify(groups));
@@ -59,15 +76,19 @@ export function MeetingList({
     setGroups(prev => Array.from(new Set([...prev, ...meetingGroups])));
   }, [meetings]);
 
-  // Group meetings by their group property
+  // Group meetings by their group and sub-divider
   const groupedMeetings = meetings.reduce((acc, meeting) => {
     const group = meeting.group || '';
+    const subDivider = meeting.subDivider || '';
     if (!acc[group]) {
-      acc[group] = [];
+      acc[group] = {};
     }
-    acc[group].push(meeting);
+    if (!acc[group][subDivider]) {
+      acc[group][subDivider] = [];
+    }
+    acc[group][subDivider].push(meeting);
     return acc;
-  }, {} as Record<string, Meeting[]>);
+  }, {} as Record<string, Record<string, Meeting[]>>);
 
   // Move group up or down
   const moveGroup = (group: string, direction: 'up' | 'down') => {
@@ -120,33 +141,71 @@ export function MeetingList({
     return result;
   }
 
-  // Handle drag end for meetings, allowing cross-group movement
+  // Handle adding a new sub-divider
+  const handleNewSubDivider = (group: string) => {
+    if (newSubDividerName.trim()) {
+      setSubDividers(prev => ({
+        ...prev,
+        [group]: [...(prev[group] || []), newSubDividerName.trim()]
+      }));
+      setNewSubDividerName('');
+      setShowNewSubDividerInput(false);
+    }
+  };
+
+  // Handle removing a sub-divider
+  const handleRemoveSubDivider = (group: string, subDivider: string) => {
+    setSubDividers(prev => ({
+      ...prev,
+      [group]: (prev[group] || []).filter(sd => sd !== subDivider)
+    }));
+    // Update meetings that were under this sub-divider
+    meetings.forEach(meeting => {
+      if (meeting.group === group && meeting.subDivider === subDivider) {
+        onUpdateMeeting({ ...meeting, subDivider: '' });
+      }
+    });
+  };
+
+  // Handle drag end for meetings, allowing cross-group and cross-sub-divider movement
   const onDragEnd = (result: DropResult) => {
     const { source, destination, draggableId } = result;
     if (!destination) return;
-    const sourceGroup = source.droppableId.replace('droppable-', '');
-    const destGroup = destination.droppableId.replace('droppable-', '');
-    if (sourceGroup === destGroup && source.index === destination.index) return;
+    
+    const [sourceGroup, sourceSubDivider] = source.droppableId.split('|');
+    const [destGroup, destSubDivider] = destination.droppableId.split('|');
+    
+    if (sourceGroup === destGroup && sourceSubDivider === destSubDivider && source.index === destination.index) return;
 
     // Clone grouped meetings
-    const newGroupedMeetings: Record<string, Meeting[]> = {};
+    const newGroupedMeetings: Record<string, Record<string, Meeting[]>> = {};
     for (const g of sortedGroups) {
-      newGroupedMeetings[g] = [...(groupedMeetings[g] || [])];
+      newGroupedMeetings[g] = {};
+      for (const sd of ['', ...(subDividers[g] || [])]) {
+        newGroupedMeetings[g][sd] = [...(groupedMeetings[g]?.[sd] || [])];
+      }
     }
 
     // Remove from source
-    const [moved] = newGroupedMeetings[sourceGroup].splice(source.index, 1);
-    // Update group property if moved to a different group
+    const [moved] = newGroupedMeetings[sourceGroup][sourceSubDivider].splice(source.index, 1);
+    
+    // Update group and sub-divider properties if moved to a different group/sub-divider
     if (sourceGroup !== destGroup) {
       moved.group = destGroup === '' ? undefined : destGroup;
     }
+    if (sourceSubDivider !== destSubDivider) {
+      moved.subDivider = destSubDivider === '' ? undefined : destSubDivider;
+    }
+    
     // Insert into destination
-    newGroupedMeetings[destGroup].splice(destination.index, 0, moved);
+    newGroupedMeetings[destGroup][destSubDivider].splice(destination.index, 0, moved);
 
     // Rebuild flat meetings array
     const newMeetings: Meeting[] = [];
     for (const g of sortedGroups) {
-      newMeetings.push(...(newGroupedMeetings[g] || []));
+      for (const sd of ['', ...(subDividers[g] || [])]) {
+        newMeetings.push(...(newGroupedMeetings[g]?.[sd] || []));
+      }
     }
     if (onReorderMeetings) {
       onReorderMeetings(newMeetings);
@@ -178,6 +237,16 @@ export function MeetingList({
             title="New Group"
           >
             <FolderPlus className="w-4 h-4 text-gray-600" />
+          </button>
+          <button
+            onClick={() => {
+              setShowNewSubDividerInput(true);
+              setSelectedGroupForSubDivider(null);
+            }}
+            className="p-1 hover:bg-gray-200 rounded-full transition-colors"
+            title="New Sub-divider"
+          >
+            <Tag className="w-4 h-4 text-gray-600" />
           </button>
           <button
             onClick={onNewMeeting}
@@ -217,114 +286,203 @@ export function MeetingList({
         </div>
       )}
 
-      <DragDropContext onDragEnd={onDragEnd}>
-        {sortedGroups.map((group) => (
-          <div key={group || 'ungrouped'}>
-            {group && (
-              <div
-                className="flex items-center px-3 py-2 bg-blue-100 border-l-4 border-blue-500 cursor-pointer hover:bg-blue-200 shadow-sm mb-1"
-                onClick={() => toggleGroup(group)}
+      {showNewSubDividerInput && (
+        <div className="p-2 border-b border-gray-200">
+          <div className="flex flex-col gap-2">
+            <div className="flex gap-1">
+              <input
+                type="text"
+                value={newSubDividerName}
+                onChange={(e) => setNewSubDividerName(e.target.value)}
+                placeholder="New sub-divider name..."
+                className="flex-1 px-2 py-1 text-sm border rounded"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && selectedGroupForSubDivider) {
+                    handleNewSubDivider(selectedGroupForSubDivider);
+                  } else if (e.key === 'Escape') {
+                    setShowNewSubDividerInput(false);
+                    setNewSubDividerName('');
+                    setSelectedGroupForSubDivider(null);
+                  }
+                }}
+              />
+              <button
+                onClick={() => {
+                  if (selectedGroupForSubDivider) {
+                    handleNewSubDivider(selectedGroupForSubDivider);
+                  }
+                }}
+                className="px-2 py-1 text-sm bg-blue-500 text-white rounded hover:bg-blue-600"
+                disabled={!selectedGroupForSubDivider}
               >
-                {expandedGroups.has(group) ? (
-                  <ChevronDown className="w-4 h-4 text-blue-700" />
-                ) : (
-                  <ChevronRight className="w-4 h-4 text-blue-700" />
-                )}
-                <span className="ml-2 text-base font-bold text-blue-800 tracking-wide uppercase flex-1">{group}</span>
-                {/* Group move up/down buttons */}
+                Add
+              </button>
+            </div>
+            <div className="text-xs text-gray-500">Select a group:</div>
+            <div className="flex flex-wrap gap-1">
+              {sortedGroups.map((group) => (
                 <button
-                  onClick={e => { e.stopPropagation(); moveGroup(group, 'up'); }}
-                  disabled={groups.indexOf(group) === 0}
-                  className={`p-1 rounded ${groups.indexOf(group) === 0 ? 'text-gray-300 cursor-not-allowed' : 'text-blue-700 hover:bg-blue-200'}`}
-                  title="Move group up"
+                  key={group || 'ungrouped'}
+                  onClick={() => setSelectedGroupForSubDivider(group)}
+                  className={`px-2 py-1 text-xs rounded ${
+                    selectedGroupForSubDivider === group
+                      ? 'bg-blue-500 text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
                 >
-                  <ArrowUp className="w-4 h-4" />
+                  {group || 'Ungrouped'}
                 </button>
-                <button
-                  onClick={e => { e.stopPropagation(); moveGroup(group, 'down'); }}
-                  disabled={groups.indexOf(group) === groups.length - 1}
-                  className={`p-1 rounded ${groups.indexOf(group) === groups.length - 1 ? 'text-gray-300 cursor-not-allowed' : 'text-blue-700 hover:bg-blue-200'}`}
-                  title="Move group down"
-                >
-                  <ArrowDown className="w-4 h-4" />
-                </button>
-              </div>
-            )}
-            {expandedGroups.has(group) && (
-              <Droppable droppableId={`droppable-${group}`}>
-                {(provided: DroppableProvided) => (
-                  <div ref={provided.innerRef} {...provided.droppableProps} className="overflow-y-auto flex-1">
-                    {(groupedMeetings[group] || []).map((meeting, index) => (
-                      <Draggable key={meeting.id} draggableId={meeting.id} index={index}>
-                        {(provided: DraggableProvided, snapshot: DraggableStateSnapshot) => (
-                          <div
-                            ref={provided.innerRef}
-                            {...provided.draggableProps}
-                            className={`px-2 py-1.5 border-b border-gray-100 cursor-pointer flex items-center gap-1 ${
-                              selectedMeeting?.id === meeting.id
-                                ? 'bg-blue-50'
-                                : 'hover:bg-gray-100'
-                            } ${snapshot.isDragging ? 'bg-yellow-50' : ''}`}
-                          >
-                            <span {...provided.dragHandleProps} className="pr-1 cursor-grab text-gray-400 hover:text-gray-600"><GripVertical size={16} /></span>
-                            <div
-                              className="text-sm text-gray-800 flex-1 truncate cursor-pointer"
-                              onDoubleClick={() => {
-                                setEditingMeetingId(meeting.id);
-                                setEditingTitle(meeting.title);
-                              }}
-                              onClick={() => onSelectMeeting(meeting)}
-                            >
-                              {editingMeetingId === meeting.id ? (
-                                <input
-                                  ref={inputRef}
-                                  type="text"
-                                  value={editingTitle}
-                                  onChange={e => setEditingTitle(e.target.value)}
-                                  onKeyDown={e => {
-                                    if (e.key === 'Enter') {
-                                      if (editingTitle.trim() && editingTitle !== meeting.title) {
-                                        onUpdateMeeting({ ...meeting, title: editingTitle.trim() });
-                                      }
-                                      setEditingMeetingId(null);
-                                      // Focus the editor after updating the title
-                                      const editorElement = document.querySelector('.ProseMirror');
-                                      if (editorElement) {
-                                        (editorElement as HTMLElement).focus();
-                                      }
-                                    } else if (e.key === 'Escape') {
-                                      setEditingMeetingId(null);
-                                    }
-                                  }}
-                                  onBlur={() => {
-                                    if (editingTitle.trim() && editingTitle !== meeting.title) {
-                                      onUpdateMeeting({ ...meeting, title: editingTitle.trim() });
-                                    }
-                                    setEditingMeetingId(null);
-                                    // Focus the editor after updating the title
-                                    const editorElement = document.querySelector('.ProseMirror');
-                                    if (editorElement) {
-                                      (editorElement as HTMLElement).focus();
-                                    }
-                                  }}
-                                  className="w-full px-1 py-0.5 border border-blue-300 rounded text-sm"
-                                  onClick={e => e.stopPropagation()}
-                                />
-                              ) : (
-                                meeting.title
-                              )}
-                            </div>
-                          </div>
-                        )}
-                      </Draggable>
-                    ))}
-                    {provided.placeholder}
-                  </div>
-                )}
-              </Droppable>
-            )}
+              ))}
+            </div>
           </div>
-        ))}
+        </div>
+      )}
+
+      <DragDropContext onDragEnd={onDragEnd}>
+        <div className="flex-1 overflow-y-auto">
+          {sortedGroups.map((group) => (
+            <div key={group || 'ungrouped'}>
+              {group && (
+                <div
+                  className="flex items-center px-3 py-2 bg-blue-100 border-l-4 border-blue-500 cursor-pointer hover:bg-blue-200 shadow-sm mb-1"
+                  onClick={() => toggleGroup(group)}
+                >
+                  {expandedGroups.has(group) ? (
+                    <ChevronDown className="w-4 h-4 text-blue-700" />
+                  ) : (
+                    <ChevronRight className="w-4 h-4 text-blue-700" />
+                  )}
+                  <span className="ml-2 text-base font-bold text-blue-800 tracking-wide uppercase flex-1">{group}</span>
+                  {/* Group move up/down buttons */}
+                  <button
+                    onClick={e => { e.stopPropagation(); moveGroup(group, 'up'); }}
+                    disabled={groups.indexOf(group) === 0}
+                    className={`p-1 rounded ${groups.indexOf(group) === 0 ? 'text-gray-300 cursor-not-allowed' : 'text-blue-700 hover:bg-blue-200'}`}
+                    title="Move group up"
+                  >
+                    <ArrowUp className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={e => { e.stopPropagation(); moveGroup(group, 'down'); }}
+                    disabled={groups.indexOf(group) === groups.length - 1}
+                    className={`p-1 rounded ${groups.indexOf(group) === groups.length - 1 ? 'text-gray-300 cursor-not-allowed' : 'text-blue-700 hover:bg-blue-200'}`}
+                    title="Move group down"
+                  >
+                    <ArrowDown className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
+              {expandedGroups.has(group) && (
+                <div className="space-y-1">
+                  {/* Sub-dividers and their meetings */}
+                  {['', ...(subDividers[group] || [])].map((subDivider, subDividerIndex) => (
+                    <Droppable key={`${group}|${subDivider}`} droppableId={`${group}|${subDivider}`}>
+                      {(provided: DroppableProvided) => (
+                        <div ref={provided.innerRef} {...provided.droppableProps}>
+                          {subDivider && (
+                            <Draggable
+                              draggableId={`subdivider-${group}-${subDivider}`}
+                              index={subDividerIndex - 1} // -1 because we want to skip the empty string at index 0
+                            >
+                              {(provided: DraggableProvided, snapshot: DraggableStateSnapshot) => (
+                                <div
+                                  ref={provided.innerRef}
+                                  {...provided.draggableProps}
+                                  className={`px-2 py-1 text-xs font-medium text-gray-500 bg-gray-100 flex items-center justify-between ${
+                                    snapshot.isDragging ? 'bg-yellow-50' : ''
+                                  }`}
+                                >
+                                  <div className="flex items-center gap-1">
+                                    <span {...provided.dragHandleProps} className="cursor-grab text-gray-400 hover:text-gray-600">
+                                      <GripVertical size={12} />
+                                    </span>
+                                    <span>{subDivider}</span>
+                                  </div>
+                                  <button
+                                    onClick={() => handleRemoveSubDivider(group, subDivider)}
+                                    className="text-gray-400 hover:text-red-500"
+                                    title="Remove sub-divider"
+                                  >
+                                    ×
+                                  </button>
+                                </div>
+                              )}
+                            </Draggable>
+                          )}
+                          {(groupedMeetings[group]?.[subDivider] || []).map((meeting, index) => (
+                            <Draggable key={meeting.id} draggableId={meeting.id} index={index}>
+                              {(provided: DraggableProvided, snapshot: DraggableStateSnapshot) => (
+                                <div
+                                  ref={provided.innerRef}
+                                  {...provided.draggableProps}
+                                  className={`px-2 py-1.5 border-b border-gray-100 cursor-pointer flex items-center gap-1 ${
+                                    selectedMeeting?.id === meeting.id
+                                      ? 'bg-blue-50'
+                                      : 'hover:bg-gray-100'
+                                  } ${snapshot.isDragging ? 'bg-yellow-50' : ''}`}
+                                >
+                                  <span {...provided.dragHandleProps} className="pr-1 cursor-grab text-gray-400 hover:text-gray-600">
+                                    <GripVertical size={16} />
+                                  </span>
+                                  <div
+                                    className="text-sm text-gray-800 flex-1 truncate cursor-pointer"
+                                    onDoubleClick={() => {
+                                      setEditingMeetingId(meeting.id);
+                                      setEditingTitle(meeting.title);
+                                    }}
+                                    onClick={() => onSelectMeeting(meeting)}
+                                  >
+                                    {editingMeetingId === meeting.id ? (
+                                      <input
+                                        ref={inputRef}
+                                        type="text"
+                                        value={editingTitle}
+                                        onChange={e => setEditingTitle(e.target.value)}
+                                        onKeyDown={e => {
+                                          if (e.key === 'Enter') {
+                                            if (editingTitle.trim() && editingTitle !== meeting.title) {
+                                              onUpdateMeeting({ ...meeting, title: editingTitle.trim() });
+                                            }
+                                            setEditingMeetingId(null);
+                                            const editorElement = document.querySelector('.ProseMirror');
+                                            if (editorElement) {
+                                              (editorElement as HTMLElement).focus();
+                                            }
+                                          } else if (e.key === 'Escape') {
+                                            setEditingMeetingId(null);
+                                          }
+                                        }}
+                                        onBlur={() => {
+                                          if (editingTitle.trim() && editingTitle !== meeting.title) {
+                                            onUpdateMeeting({ ...meeting, title: editingTitle.trim() });
+                                          }
+                                          setEditingMeetingId(null);
+                                          const editorElement = document.querySelector('.ProseMirror');
+                                          if (editorElement) {
+                                            (editorElement as HTMLElement).focus();
+                                          }
+                                        }}
+                                        className="w-full px-1 py-0.5 border border-blue-300 rounded text-sm"
+                                        onClick={e => e.stopPropagation()}
+                                      />
+                                    ) : (
+                                      meeting.title
+                                    )}
+                                  </div>
+                                </div>
+                              )}
+                            </Draggable>
+                          ))}
+                          {provided.placeholder}
+                        </div>
+                      )}
+                    </Droppable>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
       </DragDropContext>
     </div>
   );
