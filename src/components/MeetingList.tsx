@@ -245,7 +245,7 @@ export function MeetingList({
   }, [editingMeetingId]);
 
   return (
-    <div className="w-64 bg-gray-50 border-r border-gray-200 flex flex-col">
+    <div className="w-64 h-screen bg-gray-50 border-r border-gray-200 flex flex-col overflow-y-auto">
       <div className="flex items-center justify-between p-2 border-b border-gray-200">
         <h2 className="text-sm font-semibold text-gray-700">Meetings</h2>
         <div className="flex gap-1">
