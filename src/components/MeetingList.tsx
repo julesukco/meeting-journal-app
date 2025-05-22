@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { CalendarDays, Plus, ArrowUp, ArrowDown, ChevronDown, ChevronRight, FolderPlus, GripVertical, Tag } from 'lucide-react';
 import { Meeting } from '../types';
 import { DragDropContext, Droppable, Draggable, DropResult, DraggableProvided, DraggableStateSnapshot, DroppableProvided } from 'react-beautiful-dnd';
+import { get, set } from 'idb-keyval';
 
 interface MeetingListProps {
   meetings: Meeting[];
@@ -43,14 +44,26 @@ export function MeetingList({
   const [newGroupName, setNewGroupName] = useState('');
   const [showNewGroupInput, setShowNewGroupInput] = useState(false);
   const GROUPS_KEY = 'meetingGroups';
-  const [groups, setGroups] = useState<string[]>(() => {
-    const saved = localStorage.getItem(GROUPS_KEY);
-    return saved ? JSON.parse(saved) : [];
-  });
+  const [groups, setGroups] = useState<string[]>([]);
 
-  // Sync groups to localStorage
+  // Load groups from IndexedDB on mount
   useEffect(() => {
-    localStorage.setItem(GROUPS_KEY, JSON.stringify(groups));
+    const loadGroups = async () => {
+      const savedGroups = await get(GROUPS_KEY);
+      if (savedGroups) {
+        setGroups(savedGroups);
+      }
+    };
+    loadGroups();
+  }, []);
+
+  // Sync groups to IndexedDB
+  useEffect(() => {
+    if (groups.length > 0) {
+      set(GROUPS_KEY, groups).catch(error => {
+        console.error('Error saving groups to IndexedDB:', error);
+      });
+    }
   }, [groups]);
 
   // When meetings change, add any new group names from meetings

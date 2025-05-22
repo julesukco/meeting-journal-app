@@ -1,4 +1,5 @@
 import { get, set, del } from 'idb-keyval';
+import { ActionItem } from '../types';
 
 // Remove the AsyncStorage import and use localStorage instead
 const STORAGE_KEYS = {
@@ -13,7 +14,12 @@ export interface Meeting {
   date: string;
   notes: string;
   attendees: string[];
-  content: string; // Add this to match your types Meeting interface
+  content: string;
+  group?: string;
+  isDivider?: boolean;
+  subDivider?: string;
+  createdAt: number;
+  updatedAt: number;
 }
 
 export interface Reminder {
@@ -25,6 +31,7 @@ export interface ExportData {
   meetings: Meeting[];
   reminders: Reminder[];
   groups?: string[];
+  actionItems?: ActionItem[];
 }
 
 // Save meetings
@@ -121,17 +128,30 @@ export const exportMeetings = async (): Promise<string> => {
     console.log('Exporting data from IndexedDB...');
     
     const meetings = await getMeetings();
-    console.log('Meetings to export:', meetings);
+    console.log('Meetings to export:', {
+      count: meetings.length,
+      dividers: meetings.filter(m => m.isDivider).length,
+      sample: meetings.slice(0, 2)
+    });
     
     const reminders = await getReminders();
-    console.log('Reminders to export:', reminders);
+    console.log('Reminders to export:', {
+      count: reminders.length,
+      sample: reminders.slice(0, 2)
+    });
     
     const groups = await getGroups();
-    console.log('Groups to export:', groups);
+    console.log('Groups to export:', {
+      count: groups.length,
+      groups: groups
+    });
     
     // Also export action items if they exist
     const actionItems = await get('actionItems') || [];
-    console.log('Action items to export:', actionItems);
+    console.log('Action items to export:', {
+      count: actionItems.length,
+      sample: actionItems.slice(0, 2)
+    });
     
     // Create the export data object
     const exportData: ExportData & { actionItems?: any[] } = {
@@ -144,6 +164,7 @@ export const exportMeetings = async (): Promise<string> => {
     // Convert to JSON string
     const jsonString = JSON.stringify(exportData, null, 2);
     console.log('Export data size:', jsonString.length);
+    console.log('Export data preview:', jsonString.substring(0, 200) + '...');
     
     return jsonString;
   } catch (error) {
@@ -156,41 +177,127 @@ export const exportMeetings = async (): Promise<string> => {
 export const importMeetings = async (content: string): Promise<void> => {
   try {
     console.log('Starting import process...');
-    const data: ExportData & { actionItems?: any[] } = JSON.parse(content);
     
-    // Validate the data structure
+    // Create a backup of current data
+    const backup = {
+      meetings: await getMeetings(),
+      reminders: await getReminders(),
+      groups: await getGroups(),
+      actionItems: await get('actionItems') || []
+    };
+    console.log('Created backup of current data:', {
+      meetingsCount: backup.meetings.length,
+      remindersCount: backup.reminders.length,
+      groupsCount: backup.groups.length,
+      actionItemsCount: backup.actionItems.length
+    });
+    
+    // Parse and validate the imported data
+    const data: ExportData & { actionItems?: ActionItem[] } = JSON.parse(content);
+    console.log('Parsed import data:', {
+      meetingsCount: data.meetings?.length || 0,
+      remindersCount: data.reminders?.length || 0,
+      groupsCount: data.groups?.length || 0,
+      actionItemsCount: data.actionItems?.length || 0
+    });
+    
+    // Validate meetings
     if (!Array.isArray(data.meetings)) {
       throw new Error('Invalid meetings data - meetings array is missing');
     }
-    console.log(`Found ${data.meetings.length} meetings to import`);
     
-    // Reminders might be empty in some exports, so provide a default empty array
+    // Validate each meeting has required fields and add defaults for missing timestamps
+    const now = Date.now();
+    const validatedMeetings = data.meetings.map((meeting, index) => {
+      const requiredFields = ['id', 'title', 'date', 'content', 'notes', 'attendees'];
+      const missingFields = requiredFields.filter(field => !(field in meeting));
+      if (missingFields.length > 0) {
+        throw new Error(`Invalid meeting at index ${index} - missing required fields: ${missingFields.join(', ')}`);
+      }
+
+      // Add default timestamps if missing
+      return {
+        ...meeting,
+        createdAt: meeting.createdAt || now,
+        updatedAt: meeting.updatedAt || now
+      };
+    });
+    
+    console.log(`Validated ${validatedMeetings.length} meetings to import`);
+    console.log('Sample of meetings to import:', validatedMeetings.slice(0, 2));
+    
+    // Validate reminders
     const reminders = Array.isArray(data.reminders) ? data.reminders : [];
+    reminders.forEach((reminder, index) => {
+      if (!reminder.id || !reminder.text) {
+        throw new Error(`Invalid reminder at index ${index} - missing required fields`);
+      }
+    });
     console.log(`Found ${reminders.length} reminders to import`);
     
-    // Save meetings
-    await set(STORAGE_KEYS.MEETINGS, data.meetings);
-    console.log('Meetings saved to IndexedDB');
-    
-    // Save reminders
-    await set(STORAGE_KEYS.REMINDERS, reminders);
-    console.log('Reminders saved to IndexedDB');
-    
-    // Save groups (if present)
-    if (Array.isArray(data.groups)) {
-      await set(STORAGE_KEYS.GROUPS, data.groups);
-      console.log(`${data.groups.length} groups saved to IndexedDB`);
+    // Validate action items if present
+    if (data.actionItems) {
+      if (!Array.isArray(data.actionItems)) {
+        throw new Error('Invalid action items data - must be an array');
+      }
+      data.actionItems.forEach((item, index) => {
+        const requiredFields = ['id', 'text', 'completed', 'meetingId', 'createdAt'];
+        const missingFields = requiredFields.filter(field => !(field in item));
+        if (missingFields.length > 0) {
+          throw new Error(`Invalid action item at index ${index} - missing required fields: ${missingFields.join(', ')}`);
+        }
+      });
+      console.log(`Found ${data.actionItems.length} action items to import`);
     }
     
-    // Save action items if present
-    if (Array.isArray(data.actionItems)) {
-      await set('actionItems', data.actionItems);
-      console.log(`${data.actionItems.length} action items saved to IndexedDB`);
+    try {
+      // Save meetings with validated data
+      await set(STORAGE_KEYS.MEETINGS, validatedMeetings);
+      console.log('Meetings saved to IndexedDB');
+      
+      // Verify meetings were saved
+      const savedMeetings = await getMeetings();
+      console.log('Verified saved meetings:', {
+        count: savedMeetings.length,
+        sample: savedMeetings.slice(0, 2)
+      });
+      
+      // Save reminders
+      await set(STORAGE_KEYS.REMINDERS, reminders);
+      console.log('Reminders saved to IndexedDB');
+      
+      // Save groups (if present)
+      if (Array.isArray(data.groups)) {
+        await set(STORAGE_KEYS.GROUPS, data.groups);
+        console.log(`${data.groups.length} groups saved to IndexedDB`);
+      }
+      
+      // Save action items if present
+      if (Array.isArray(data.actionItems)) {
+        await set('actionItems', data.actionItems);
+        console.log(`${data.actionItems.length} action items saved to IndexedDB`);
+      }
+      
+      // Final verification
+      const finalMeetings = await getMeetings();
+      console.log('Final verification - meetings in IndexedDB:', {
+        count: finalMeetings.length,
+        dividers: finalMeetings.filter(m => m.isDivider).length,
+        sample: finalMeetings.slice(0, 2)
+      });
+      
+      console.log('Import completed successfully');
+    } catch (error) {
+      // If anything fails during save, restore from backup
+      console.error('Error during import, restoring from backup:', error);
+      await set(STORAGE_KEYS.MEETINGS, backup.meetings);
+      await set(STORAGE_KEYS.REMINDERS, backup.reminders);
+      await set(STORAGE_KEYS.GROUPS, backup.groups);
+      await set('actionItems', backup.actionItems);
+      throw new Error('Import failed, restored from backup: ' + (error instanceof Error ? error.message : 'Unknown error'));
     }
-    
-    console.log('Import completed successfully');
   } catch (error) {
     console.error('Error importing data:', error);
     throw error;
   }
-}; 
+};

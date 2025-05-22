@@ -234,10 +234,15 @@ function App() {
         setActionItems(importedData.actionItems);
       }
       
+      // Clear the file input so the same file can be selected again
+      event.target.value = '';
+      
       alert('Import successful! Data has been loaded.');
     } catch (error) {
       console.error('Import error:', error);
       alert('Failed to import meetings: ' + (error instanceof Error ? error.message : 'Unknown error'));
+      // Clear the file input even on error
+      event.target.value = '';
     }
   };
 
