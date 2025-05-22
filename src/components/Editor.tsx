@@ -4,6 +4,7 @@ import StarterKit from '@tiptap/starter-kit';
 import TaskList from '@tiptap/extension-task-list';
 import TaskItem from '@tiptap/extension-task-item';
 import Image from '@tiptap/extension-image';
+import Link from '@tiptap/extension-link';
 import Underline from '@tiptap/extension-underline';
 import CodeBlock from '@tiptap/extension-code-block';
 import Color from '@tiptap/extension-color';
@@ -92,6 +93,12 @@ const Editor: React.FC<EditorProps> = ({
         allowBase64: true,
         HTMLAttributes: {
           class: 'max-w-full h-auto cursor-pointer',
+        },
+      }),
+      Link.configure({
+        openOnClick: false,
+        HTMLAttributes: {
+          class: 'text-blue-600 hover:text-blue-800 underline',
         },
       }),
       ResizableImage,
@@ -207,6 +214,16 @@ const Editor: React.FC<EditorProps> = ({
           }
         }
 
+        // Handle URLs
+        const urlRegex = /^(https?:\/\/[^\s]+)$/;
+        if (urlRegex.test(text.trim())) {
+          e.preventDefault();
+          if (editor) {
+            editor.chain().focus().setLink({ href: text.trim() }).run();
+          }
+          return;
+        }
+
         // Handle markdown tables
         if (/^\s*\|(.|\n)*\|\s*$/m.test(text) && /\|\s*-+\s*\|/.test(text)) {
           e.preventDefault();
@@ -229,6 +246,23 @@ const Editor: React.FC<EditorProps> = ({
     document.addEventListener('paste', handlePaste);
     return () => document.removeEventListener('paste', handlePaste);
   }, [editor]);
+
+  // Handle link clicks
+  useEffect(() => {
+    const handleLinkClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (target.tagName === 'A') {
+        e.preventDefault();
+        const href = target.getAttribute('href');
+        if (href) {
+          window.open(href, '_blank', 'noopener,noreferrer');
+        }
+      }
+    };
+
+    document.addEventListener('click', handleLinkClick);
+    return () => document.removeEventListener('click', handleLinkClick);
+  }, []);
 
   // Add image resize handlers
   useEffect(() => {
