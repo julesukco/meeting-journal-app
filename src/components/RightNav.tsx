@@ -53,9 +53,7 @@ export const RightNav: React.FC<RightNavProps> = ({
     setReminders((prev: Reminder[]) => prev.map(reminder => reminder.id === id ? { ...reminder, text: newText } : reminder));
   };
 
-  console.log('RightNav - selectedMeeting:', selectedMeeting);
   const isOneOnOne = selectedMeeting?.title.toLowerCase().startsWith('1-1');
-  console.log('RightNav - isOneOnOne:', isOneOnOne);
   
   const sections = [
     { id: 'action-items', title: 'Action Items', icon: '📝' },
@@ -63,7 +61,6 @@ export const RightNav: React.FC<RightNavProps> = ({
   ];
 
   if (isOneOnOne) {
-    console.log('RightNav - Adding 1-1 sections');
     sections.push(
       { id: 'pa', title: 'PA', icon: '👤' },
       { id: 'goals', title: 'Goals', icon: '🎯' },
@@ -73,13 +70,10 @@ export const RightNav: React.FC<RightNavProps> = ({
 
   const extractSectionContent = (sectionId: string) => {
     if (!selectedMeeting?.content) {
-      console.log('RightNav - No content for section:', sectionId);
       return '';
     }
     
     const content = selectedMeeting.content;
-    console.log('RightNav - Extracting content for section:', sectionId);
-    console.log('RightNav - Raw content:', content);
     
     let sectionContent = '';
     
@@ -120,7 +114,6 @@ export const RightNav: React.FC<RightNavProps> = ({
         endIndex === -1 ? undefined : endIndex
       ).trim();
       
-      console.log('RightNav - Extracted content for', startHeader, ':', extracted);
       return extracted;
     };
     
