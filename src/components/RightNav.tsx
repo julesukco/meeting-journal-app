@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { ActionItem } from '../types';
 import { ActionItems } from './ActionItems';
-import { Reminders } from './Reminders';
+import { Reminders, RemindersHandle } from './Reminders';
 import { getReminders, Reminder } from '../services/storage';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 
@@ -30,6 +30,7 @@ export const RightNav: React.FC<RightNavProps> = ({
   });
   const [showCompleted, setShowCompleted] = useState(false);
   const [expandedSection, setExpandedSection] = useState<string | null>('action-items');
+  const remindersRef = useRef<RemindersHandle>(null);
 
   // Save reminders whenever they change
   useEffect(() => {
@@ -175,11 +176,22 @@ export const RightNav: React.FC<RightNavProps> = ({
                 <span className="text-base">{section.icon}</span>
                 <span className="font-medium text-base">{section.title}</span>
               </div>
-              {expandedSection === section.id ? (
-                <ChevronDown className="w-4 h-4 text-gray-500" />
-              ) : (
-                <ChevronRight className="w-4 h-4 text-gray-500" />
-              )}
+              <div className="flex items-center gap-2">
+                {section.id === 'reminders' && (
+                  <button
+                    onClick={e => { e.stopPropagation(); remindersRef.current?.triggerAddReminder(); }}
+                    className="w-6 h-6 flex items-center justify-center rounded-full bg-blue-100 hover:bg-blue-200 text-blue-600 text-lg focus:outline-none"
+                    title="Add Reminder"
+                  >
+                    +
+                  </button>
+                )}
+                {expandedSection === section.id ? (
+                  <ChevronDown className="w-4 h-4 text-gray-500" />
+                ) : (
+                  <ChevronRight className="w-4 h-4 text-gray-500" />
+                )}
+              </div>
             </div>
             
             {expandedSection === section.id && (
@@ -187,6 +199,7 @@ export const RightNav: React.FC<RightNavProps> = ({
                 {section.id === 'reminders' && (
                   <div className="max-h-[200px] overflow-y-auto">
                     <Reminders
+                      ref={remindersRef}
                       reminders={reminders}
                       onAddReminder={handleAddReminder}
                       onDeleteReminder={handleDeleteReminder}
