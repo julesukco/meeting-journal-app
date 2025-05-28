@@ -82,13 +82,16 @@ function App() {
   };
 
   const handleNewMeeting = useCallback(() => {
+    const now = Date.now();
     const newMeeting: Meeting = {
-      id: Date.now().toString(),
+      id: now.toString(),
       title: 'New Meeting',
       date: new Date().toLocaleDateString(),
       content: '',
       notes: '',
-      attendees: []
+      attendees: [],
+      createdAt: now,
+      updatedAt: now
     };
     setMeetings((prev) => [...prev, newMeeting]);
     setSelectedMeeting(newMeeting);
@@ -300,6 +303,7 @@ function App() {
                     onToggleActionItem={toggleActionItem}
                     onExport={handleExport}
                     onImport={handleImport}
+                    selectedMeeting={selectedMeeting}
                   />
                 </div>
               )}
