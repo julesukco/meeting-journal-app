@@ -29,8 +29,16 @@ export const RightNav: React.FC<RightNavProps> = ({
     return saved ? JSON.parse(saved) : [];
   });
   const [showCompleted, setShowCompleted] = useState(false);
-  const [expandedSection, setExpandedSection] = useState<string | null>('action-items');
+  const [expandedSection, setExpandedSection] = useState<string | null>(() => {
+    const isOneOnOne = selectedMeeting?.title.toLowerCase().startsWith('1-1');
+    return isOneOnOne ? 'action-items' : 'reminders';
+  });
   const remindersRef = useRef<RemindersHandle>(null);
+
+  useEffect(() => {
+    const isOneOnOne = selectedMeeting?.title.toLowerCase().startsWith('1-1');
+    setExpandedSection(isOneOnOne ? 'action-items' : 'reminders');
+  }, [selectedMeeting]);
 
   // Save reminders whenever they change
   useEffect(() => {
