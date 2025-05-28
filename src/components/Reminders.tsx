@@ -10,6 +10,7 @@ interface RemindersProps {
   reminders: Reminder[];
   onAddReminder: (text: string) => void;
   onDeleteReminder: (id: string) => void;
+  onUpdateReminder?: (id: string, newText: string) => void;
 }
 
 export interface RemindersHandle {
@@ -17,9 +18,11 @@ export interface RemindersHandle {
 }
 
 export const Reminders = forwardRef<RemindersHandle, RemindersProps>(
-  ({ reminders, onAddReminder, onDeleteReminder }, ref) => {
+  ({ reminders, onAddReminder, onDeleteReminder, onUpdateReminder }, ref) => {
     const [newReminder, setNewReminder] = useState('');
     const [showInput, setShowInput] = useState(false);
+    const [editingId, setEditingId] = useState<string | null>(null);
+    const [editingText, setEditingText] = useState('');
 
     useImperativeHandle(ref, () => ({
       triggerAddReminder: () => setShowInput(true),
@@ -76,10 +79,38 @@ export const Reminders = forwardRef<RemindersHandle, RemindersProps>(
               key={reminder.id}
               className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
             >
-              <span className="text-gray-700">{reminder.text}</span>
+              {editingId === reminder.id ? (
+                <input
+                  type="text"
+                  value={editingText}
+                  onChange={e => setEditingText(e.target.value)}
+                  onBlur={() => { setEditingId(null); setEditingText(''); }}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' && editingText.trim()) {
+                      e.preventDefault();
+                      onUpdateReminder?.(reminder.id, editingText.trim());
+                      setEditingId(null);
+                      setEditingText('');
+                    } else if (e.key === 'Escape') {
+                      setEditingId(null);
+                      setEditingText('');
+                    }
+                  }}
+                  className="flex-1 px-2 py-1 border border-blue-300 rounded text-sm mr-2"
+                  autoFocus
+                />
+              ) : (
+                <span
+                  className="text-gray-700 flex-1 cursor-pointer"
+                  onDoubleClick={() => { setEditingId(reminder.id); setEditingText(reminder.text); }}
+                  title="Double-click to edit"
+                >
+                  {reminder.text}
+                </span>
+              )}
               <button
                 onClick={() => onDeleteReminder(reminder.id)}
-                className="text-gray-400 hover:text-red-500 transition-colors"
+                className="text-gray-400 hover:text-red-500 transition-colors ml-2"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
