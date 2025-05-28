@@ -218,9 +218,9 @@ export const RightNav: React.FC<RightNavProps> = ({
             </div>
             
             {expandedSection === section.id && (
-              <div className="px-4 pb-4">
+              <div className="px-2 pb-2">
                 {section.id === 'reminders' && (
-                  <div className="max-h-[200px] overflow-y-auto">
+                  <div className="max-h-[200px] overflow-y-auto -mx-2">
                     <Reminders
                       ref={remindersRef}
                       reminders={reminders}
