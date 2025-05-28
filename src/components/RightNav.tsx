@@ -132,9 +132,27 @@ export const RightNav: React.FC<RightNavProps> = ({
       case 'goals':
         sectionContent = extractBetweenHeaders(content, 'Goals', 'What to Work On');
         break;
-      case 'what-to-work-on':
-        sectionContent = extractBetweenHeaders(content, 'What to Work On', 'AI');
+      case 'what-to-work-on': {
+        // Parse the HTML and extract only the first bullet list after the header
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = content;
+        
+        // Find the node that contains 'What to Work On:'
+        let foundHeader = false;
+        let bulletListHtml = '';
+        const walker = document.createTreeWalker(tempDiv, NodeFilter.SHOW_ELEMENT, null);
+        while (walker.nextNode()) {
+          const node = walker.currentNode as HTMLElement;
+          if (!foundHeader && node.textContent && node.textContent.trim().startsWith('What to Work On:')) {
+            foundHeader = true;
+          } else if (foundHeader && (node.tagName === 'UL' || node.tagName === 'OL')) {
+            bulletListHtml = node.outerHTML;
+            break;
+          }
+        }
+        sectionContent = bulletListHtml;
         break;
+      }
     }
     
     return sectionContent;
