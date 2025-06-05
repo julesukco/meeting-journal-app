@@ -2,8 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { ActionItem } from '../types';
 import { ActionItems } from './ActionItems';
 import { Reminders, RemindersHandle } from './Reminders';
-import { getReminders, Reminder } from '../services/storage';
-import { ChevronDown, ChevronRight } from 'lucide-react';
+import { getReminders, Reminder, getMeetings } from '../services/storage';
+import { ChevronDown, ChevronRight, RefreshCw } from 'lucide-react';
 
 interface RightNavProps {
   actionItems: ActionItem[];
@@ -14,6 +14,13 @@ interface RightNavProps {
     title: string;
     content: string;
   } | null;
+}
+
+interface Feedback {
+  meetingTitle: string;
+  personName: string;
+  feedback: string;
+  date: string;
 }
 
 export const RightNav: React.FC<RightNavProps> = ({
@@ -33,11 +40,15 @@ export const RightNav: React.FC<RightNavProps> = ({
     const isOneOnOne = selectedMeeting?.title.toLowerCase().startsWith('1-1');
     return isOneOnOne ? 'action-items' : 'reminders';
   });
+  const [feedback, setFeedback] = useState<Feedback[]>([]);
+  const [isLoadingFeedback, setIsLoadingFeedback] = useState(false);
   const remindersRef = useRef<RemindersHandle>(null);
 
   useEffect(() => {
     const isOneOnOne = selectedMeeting?.title.toLowerCase().startsWith('1-1');
     setExpandedSection(isOneOnOne ? 'action-items' : 'reminders');
+    // Clear feedback when switching meetings
+    setFeedback([]);
   }, [selectedMeeting]);
 
   // Save reminders whenever they change
@@ -61,6 +72,53 @@ export const RightNav: React.FC<RightNavProps> = ({
     setReminders((prev: Reminder[]) => prev.map(reminder => reminder.id === id ? { ...reminder, text: newText } : reminder));
   };
 
+  const fetchFeedback = async () => {
+    setIsLoadingFeedback(true);
+    // Expand the feedback section when refresh is clicked
+    setExpandedSection('feedback');
+    try {
+      const meetings = await getMeetings();
+      const feedbackData: Feedback[] = [];
+      
+      // Only run if in a 1-1 meeting
+      if (!isOneOnOne || !selectedMeeting) {
+        setFeedback([]);
+        setIsLoadingFeedback(false);
+        return;
+      }
+      // Extract the person name from the current 1-1 meeting title
+      const currentPerson = selectedMeeting.title.replace(/^1-1\s+/i, '').trim().toLowerCase();
+      
+      meetings.forEach(meeting => {
+        const content = meeting.content;
+        // Flexible regex for Feedback: Name - feedback or Feedback: Name: feedback
+        const feedbackRegex = /Feedback:\s*([^-:]+)(?:[-:]\s*)([^<]+)/gi;
+        let match;
+        while ((match = feedbackRegex.exec(content)) !== null) {
+          const personName = match[1].trim().toLowerCase();
+          const feedbackText = match[2].trim();
+          // Flexible, case-insensitive matching
+          if (
+            currentPerson.includes(personName) ||
+            personName.includes(currentPerson)
+          ) {
+            feedbackData.push({
+              meetingTitle: meeting.title,
+              personName: match[1].trim(),
+              feedback: feedbackText,
+              date: meeting.date
+            });
+          }
+        }
+      });
+      setFeedback(feedbackData);
+    } catch (error) {
+      console.error('Error fetching feedback:', error);
+    } finally {
+      setIsLoadingFeedback(false);
+    }
+  };
+
   const isOneOnOne = selectedMeeting?.title.toLowerCase().startsWith('1-1');
   
   const sections = [
@@ -70,6 +128,7 @@ export const RightNav: React.FC<RightNavProps> = ({
 
   if (isOneOnOne) {
     sections.push(
+      { id: 'feedback', title: 'Feedback', icon: '💬' },
       { id: 'pa', title: 'PA', icon: '👤' },
       { id: 'goals', title: 'Goals', icon: '🎯' },
       { id: 'what-to-work-on', title: 'What to Work On', icon: '📋' }
@@ -209,6 +268,16 @@ export const RightNav: React.FC<RightNavProps> = ({
                     +
                   </button>
                 )}
+                {section.id === 'feedback' && (
+                  <button
+                    onClick={e => { e.stopPropagation(); fetchFeedback(); }}
+                    className={`w-6 h-6 flex items-center justify-center rounded-full bg-blue-100 hover:bg-blue-200 text-blue-600 text-lg focus:outline-none ${isLoadingFeedback ? 'animate-spin' : ''}`}
+                    title="Refresh Feedback"
+                    disabled={isLoadingFeedback}
+                  >
+                    <RefreshCw className="w-4 h-4" />
+                  </button>
+                )}
                 {expandedSection === section.id ? (
                   <ChevronDown className="w-4 h-4 text-gray-500" />
                 ) : (
@@ -228,6 +297,24 @@ export const RightNav: React.FC<RightNavProps> = ({
                       onDeleteReminder={handleDeleteReminder}
                       onUpdateReminder={handleUpdateReminder}
                     />
+                  </div>
+                )}
+                
+                {section.id === 'feedback' && (
+                  <div className="max-h-[200px] overflow-y-auto -mx-2">
+                    {feedback.length === 0 ? (
+                      <div className="text-gray-500 italic text-sm p-2">
+                        {isLoadingFeedback ? 'Loading feedback...' : 'No feedback found. Click the refresh button to search.'}
+                      </div>
+                    ) : (
+                      <div className="space-y-2 p-2">
+                        {feedback.map((item, index) => (
+                          <div key={index} className="bg-gray-50 rounded-lg p-3 text-sm text-gray-700">
+                            {item.feedback}
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
                 
