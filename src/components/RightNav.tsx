@@ -223,7 +223,7 @@ export const RightNav: React.FC<RightNavProps> = ({
       <div className="border-b border-gray-200 flex-shrink-0">
         <div className="px-4 py-2">
           <div className="flex items-center gap-2 mb-2">
-            <span className="text-base">📝</span>
+            <span className={`text-base ${actionItems.length > 0 ? 'bg-blue-100 p-1 rounded' : ''}`}>📝</span>
             <span className="font-medium text-base">Action Items</span>
           </div>
           <div className="flex items-center justify-end mb-2">
@@ -251,11 +251,13 @@ export const RightNav: React.FC<RightNavProps> = ({
         {sections.filter(section => section.id !== 'action-items').map((section) => (
           <div key={section.id} className="border-b border-gray-200">
             <div
-              className="flex items-center justify-between px-4 py-2 cursor-pointer hover:bg-gray-50 transition-colors"
+              className={`flex items-center justify-between px-4 py-2 cursor-pointer hover:bg-gray-50 transition-colors ${
+                section.id === 'action-items' && actionItems.length > 0 ? 'text-blue-600' : ''
+              }`}
               onClick={() => setExpandedSection(expandedSection === section.id ? null : section.id)}
             >
               <div className="flex items-center gap-2">
-                <span className="text-base">{section.icon}</span>
+                <span className={`text-base ${section.id === 'action-items' && actionItems.length > 0 ? 'bg-blue-100 p-1 rounded' : ''}`}>{section.icon}</span>
                 <span className="font-medium text-base">{section.title}</span>
               </div>
               <div className="flex items-center gap-2">
