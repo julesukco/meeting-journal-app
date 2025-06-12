@@ -284,13 +284,13 @@ function App() {
                   </div>
                   <button
                     onClick={() => setIsRightNavVisible((v) => !v)}
-                    className={`rounded-full p-1 shadow border ${selectedMeeting && actionItems.filter(item => item.meetingId === selectedMeeting.id).length > 0 ? 'bg-blue-500 border-blue-500 hover:bg-blue-600' : 'bg-white border-gray-300 hover:bg-gray-100'}`}
+                    className={`rounded-full p-1 shadow border ${selectedMeeting && actionItems.filter(item => item.meetingId === selectedMeeting.id && !item.completed).length > 0 ? 'bg-blue-500 border-blue-500 hover:bg-blue-600' : 'bg-white border-gray-300 hover:bg-gray-100'}`}
                     title={isRightNavVisible ? 'Hide right nav' : 'Show right nav'}
                   >
                     {isRightNavVisible ? (
-                      <ChevronRight className={`w-5 h-5 ${selectedMeeting && actionItems.filter(item => item.meetingId === selectedMeeting.id).length > 0 ? 'text-white' : 'text-gray-700'}`} />
+                      <ChevronRight className={`w-5 h-5 ${selectedMeeting && actionItems.filter(item => item.meetingId === selectedMeeting.id && !item.completed).length > 0 ? 'text-white' : 'text-gray-700'}`} />
                     ) : (
-                      <ChevronLeft className={`w-5 h-5 ${selectedMeeting && actionItems.filter(item => item.meetingId === selectedMeeting.id).length > 0 ? 'text-white' : 'text-gray-700'}`} />
+                      <ChevronLeft className={`w-5 h-5 ${selectedMeeting && actionItems.filter(item => item.meetingId === selectedMeeting.id && !item.completed).length > 0 ? 'text-white' : 'text-gray-700'}`} />
                     )}
                   </button>
                 </div>
