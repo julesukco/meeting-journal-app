@@ -36,7 +36,7 @@ function App() {
   }, []);
 
   const [isLeftNavVisible, setIsLeftNavVisible] = useState(true);
-  const [isRightNavVisible, setIsRightNavVisible] = useState(true);
+  const [isRightNavVisible, setIsRightNavVisible] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
 
   // Save meetings to IndexedDB whenever they change
