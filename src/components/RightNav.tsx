@@ -2,8 +2,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import { ActionItem } from '../types';
 import { ActionItems } from './ActionItems';
 import { Reminders, RemindersHandle } from './Reminders';
+import { SummaryDialog } from './SummaryDialog';
 import { getReminders, Reminder, getMeetings } from '../services/storage';
-import { ChevronDown, ChevronRight, RefreshCw } from 'lucide-react';
+import { ChevronDown, ChevronRight, RefreshCw, BarChart3 } from 'lucide-react';
 
 interface RightNavProps {
   actionItems: ActionItem[];
@@ -42,6 +43,7 @@ export const RightNav: React.FC<RightNavProps> = ({
   });
   const [feedback, setFeedback] = useState<Feedback[]>([]);
   const [isLoadingFeedback, setIsLoadingFeedback] = useState(false);
+  const [showSummaryDialog, setShowSummaryDialog] = useState(false);
   const remindersRef = useRef<RemindersHandle>(null);
 
   useEffect(() => {
@@ -335,29 +337,47 @@ export const RightNav: React.FC<RightNavProps> = ({
         ))}
       </div>
 
-      <div className="flex space-x-2 p-4 border-t border-gray-200 flex-shrink-0">
+      <div className="p-4 border-t border-gray-200 flex-shrink-0 space-y-2">
+        {/* Summarize button - full width */}
         <button
-          onClick={onExport}
-          className="flex-1 px-4 py-2 bg-blue-500 text-white rounded-lg shadow-lg hover:bg-blue-600 transition-colors flex items-center justify-center"
+          onClick={() => setShowSummaryDialog(true)}
+          className="w-full px-4 py-2 bg-purple-500 text-white rounded-lg shadow-lg hover:bg-purple-600 transition-colors flex items-center justify-center"
         >
-          <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-          </svg>
-          Export
+          <BarChart3 className="w-5 h-5 mr-2" />
+          Summarize
         </button>
-        <label className="flex-1 px-4 py-2 bg-green-500 text-white rounded-lg shadow-lg hover:bg-green-600 transition-colors cursor-pointer flex items-center justify-center">
-          <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-          </svg>
-          Import
-          <input
-            type="file"
-            accept=".json"
-            onChange={onImport}
-            className="hidden"
-          />
-        </label>
+        
+        {/* Import/Export buttons - side by side */}
+        <div className="flex space-x-2">
+          <button
+            onClick={onExport}
+            className="flex-1 px-4 py-2 bg-blue-500 text-white rounded-lg shadow-lg hover:bg-blue-600 transition-colors flex items-center justify-center"
+          >
+            <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+            </svg>
+            Export
+          </button>
+          <label className="flex-1 px-4 py-2 bg-green-500 text-white rounded-lg shadow-lg hover:bg-green-600 transition-colors cursor-pointer flex items-center justify-center">
+            <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+            </svg>
+            Import
+            <input
+              type="file"
+              accept=".json"
+              onChange={onImport}
+              className="hidden"
+            />
+          </label>
+        </div>
       </div>
+      
+      {/* Summary Dialog */}
+      <SummaryDialog
+        isOpen={showSummaryDialog}
+        onClose={() => setShowSummaryDialog(false)}
+      />
     </div>
   );
 };
