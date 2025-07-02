@@ -192,33 +192,15 @@ export const SummaryDialog: React.FC<SummaryDialogProps> = ({ isOpen, onClose })
                       <h3 className="text-lg font-semibold text-gray-900">
                         {update.meeting.title}
                       </h3>
-                      <div className="flex items-center text-sm text-gray-600 mt-1">
-                        <Calendar className="w-4 h-4 mr-1" />
-                        <span className="mr-4">Meeting Date: {update.meeting.date}</span>
-                        <Clock className="w-4 h-4 mr-1" />
-                        <span>Last Modified: {formatTime(update.meeting.updatedAt)}</span>
-                      </div>
                     </div>
                   </div>
-                  {update.recentSections.length > 0 && (
-                    <div className="mb-3">
-                      <h4 className="text-sm font-medium text-gray-700 mb-2">
-                        Recent Updates:
-                      </h4>
-                      <div className="space-y-4">
-                        {update.recentSections.map((section, idx) => (
-                          <div key={idx} className="bg-white rounded border p-3">
-                            <div className="flex items-center gap-2 mb-1">
-                              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                                {formatDate(section.date)}
-                              </span>
-                            </div>
-                            <div className="prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: section.content || 'No content' }} />
-                          </div>
-                        ))}
+                  <div className="space-y-4">
+                    {update.recentSections.map((section, idx) => (
+                      <div key={idx} className="bg-white rounded border p-3">
+                        <div className="prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: section.content || 'No content' }} />
                       </div>
-                    </div>
-                  )}
+                    ))}
+                  </div>
                 </div>
               ))}
             </div>
