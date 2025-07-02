@@ -249,9 +249,9 @@ export const RightNav: React.FC<RightNavProps> = ({
       </div>
 
       {/* Other sections */}
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 flex flex-col min-h-0">
         {sections.filter(section => section.id !== 'action-items').map((section) => (
-          <div key={section.id} className="border-b border-gray-200">
+          <div key={section.id} className="border-b border-gray-200 flex flex-col min-h-0">
             <div
               className={`flex items-center justify-between px-4 py-2 cursor-pointer hover:bg-gray-50 transition-colors ${
                 section.id === 'action-items' && actionItems.length > 0 ? 'text-blue-600' : ''
@@ -291,46 +291,46 @@ export const RightNav: React.FC<RightNavProps> = ({
             </div>
             
             {expandedSection === section.id && (
-              <div className="px-2 pb-2">
-                {section.id === 'reminders' && (
-                  <div className="max-h-[200px] overflow-y-auto -mx-2">
-                    <Reminders
-                      ref={remindersRef}
-                      reminders={reminders}
-                      onAddReminder={handleAddReminder}
-                      onDeleteReminder={handleDeleteReminder}
-                      onUpdateReminder={handleUpdateReminder}
-                    />
-                  </div>
-                )}
-                
-                {section.id === 'feedback' && (
-                  <div className="max-h-[200px] overflow-y-auto -mx-2">
-                    {feedback.length === 0 ? (
-                      <div className="text-gray-500 italic text-sm p-2">
-                        {isLoadingFeedback ? 'Loading feedback...' : 'No feedback found. Click the refresh button to search.'}
-                      </div>
-                    ) : (
-                      <div className="space-y-2 p-2">
-                        {feedback.map((item, index) => (
-                          <div key={index} className="bg-gray-50 rounded-lg p-3 text-sm text-gray-700">
-                            {item.feedback}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
-                
-                {['pa', 'goals', 'what-to-work-on'].includes(section.id) && (
-                  <div className="prose prose-sm max-w-none bg-gray-50 rounded-lg p-3 max-h-[200px] overflow-y-auto">
-                    {extractSectionContent(section.id) ? (
-                      <div dangerouslySetInnerHTML={{ __html: extractSectionContent(section.id) }} />
-                    ) : (
-                      <div className="text-gray-500 italic text-sm">No content found in this section</div>
-                    )}
-                  </div>
-                )}
+              <div className="px-2 pb-2 flex-1 flex flex-col min-h-0">
+                <div className="flex-1 overflow-y-auto">
+                  {section.id === 'reminders' && (
+                    <div className="-mx-2">
+                      <Reminders
+                        ref={remindersRef}
+                        reminders={reminders}
+                        onAddReminder={handleAddReminder}
+                        onDeleteReminder={handleDeleteReminder}
+                        onUpdateReminder={handleUpdateReminder}
+                      />
+                    </div>
+                  )}
+                  {section.id === 'feedback' && (
+                    <div className="-mx-2">
+                      {feedback.length === 0 ? (
+                        <div className="text-gray-500 italic text-sm p-2">
+                          {isLoadingFeedback ? 'Loading feedback...' : 'No feedback found. Click the refresh button to search.'}
+                        </div>
+                      ) : (
+                        <div className="space-y-2 p-2">
+                          {feedback.map((item, index) => (
+                            <div key={index} className="bg-gray-50 rounded-lg p-3 text-sm text-gray-700">
+                              {item.feedback}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {['pa', 'goals', 'what-to-work-on'].includes(section.id) && (
+                    <div className="prose prose-sm max-w-none bg-gray-50 rounded-lg p-3">
+                      {extractSectionContent(section.id) ? (
+                        <div dangerouslySetInnerHTML={{ __html: extractSectionContent(section.id) }} />
+                      ) : (
+                        <div className="text-gray-500 italic text-sm">No content found in this section</div>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </div>
