@@ -12,96 +12,112 @@ interface MeetingUpdate {
   meeting: Meeting;
   updateDates: Date[];
   hasRecentUpdates: boolean;
+  recentSections: { date: Date; content: string }[];
 }
 
 export const SummaryDialog: React.FC<SummaryDialogProps> = ({ isOpen, onClose }) => {
   const [meetingUpdates, setMeetingUpdates] = useState<MeetingUpdate[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
-  const extractDateHeadings = (content: string): Date[] => {
+  const extractRecentSections = (content: string): { dates: Date[], recentSections: { date: Date, content: string }[] } => {
     const dates: Date[] = [];
-    
-    // Create a temporary div to parse HTML content
+    const recentSections: { date: Date, content: string }[] = [];
+
+    // Parse HTML into a DOM tree
     const tempDiv = document.createElement('div');
     tempDiv.innerHTML = content;
-    
-    // Get all text content and split by lines
-    const textContent = tempDiv.textContent || '';
-    const lines = textContent.split('\n');
-    
-    // Common date patterns to match
+
+    // Date patterns
     const datePatterns = [
-      // MM/DD/YYYY, MM/DD/YY
       /(\d{1,2}\/\d{1,2}\/\d{2,4})/g,
-      // Month DD, YYYY
       /([A-Za-z]+\s+\d{1,2},\s+\d{4})/g,
-      // DD Month YYYY
       /(\d{1,2}\s+[A-Za-z]+\s+\d{4})/g,
-      // YYYY-MM-DD
       /(\d{4}-\d{1,2}-\d{1,2})/g,
     ];
-    
-    lines.forEach(line => {
-      const trimmedLine = line.trim();
-      
-      // Skip if line is too long (likely not a date heading)
-      if (trimmedLine.length > 50) return;
-      
-      // Check each date pattern
-      datePatterns.forEach(pattern => {
-        const matches = trimmedLine.match(pattern);
+
+    // Helper to check if a string contains a date and return the date if it's recent
+    const getRecentDate = (text: string, sevenDaysAgo: Date): Date | null => {
+      for (const pattern of datePatterns) {
+        const matches = text.match(pattern);
         if (matches) {
-          matches.forEach(match => {
+          for (const match of matches) {
             const date = new Date(match);
-            if (!isNaN(date.getTime())) {
-              dates.push(date);
+            if (!isNaN(date.getTime()) && date >= sevenDaysAgo) {
+              return date;
             }
-          });
+          }
         }
-      });
+      }
+      return null;
+    };
+
+    // Get all block-level elements (p, li, div, etc.)
+    const blocks: HTMLElement[] = [];
+    tempDiv.childNodes.forEach(node => {
+      if (node.nodeType === Node.ELEMENT_NODE) {
+        const el = node as HTMLElement;
+        if (["P", "DIV", "LI", "OL", "UL", "H1", "H2", "H3", "H4", "H5", "H6"].includes(el.tagName)) {
+          blocks.push(el);
+        }
+      } else if (node.nodeType === Node.TEXT_NODE && node.textContent?.trim()) {
+        // Wrap stray text nodes in a <p>
+        const p = document.createElement('p');
+        p.textContent = node.textContent;
+        blocks.push(p);
+      }
     });
-    
-    // Remove duplicates and sort by date
-    const uniqueDates = Array.from(new Set(dates.map(d => d.getTime())))
-      .map(time => new Date(time))
-      .sort((a, b) => b.getTime() - a.getTime());
-    
-    return uniqueDates;
+
+    // Find all date header blocks and their indices
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    const dateHeaders: { date: Date, blockIndex: number }[] = [];
+    blocks.forEach((block, i) => {
+      const text = block.textContent?.trim() || '';
+      const date = getRecentDate(text, new Date(0)); // get all dates, filter later
+      if (date) {
+        dateHeaders.push({ date, blockIndex: i });
+      }
+    });
+
+    // Only keep date headers within the last 7 days
+    const recentHeaders = dateHeaders.filter(h => h.date >= sevenDaysAgo);
+    dates.push(...recentHeaders.map(h => h.date));
+
+    // For each recent header, collect blocks from that header up to the next date header
+    for (let i = 0; i < recentHeaders.length; ++i) {
+      const currentHeader = recentHeaders[i];
+      // Find this header's index in the full dateHeaders array
+      const fullIdx = dateHeaders.findIndex(h => h.blockIndex === currentHeader.blockIndex && h.date.getTime() === currentHeader.date.getTime());
+      const start = currentHeader.blockIndex;
+      const end = (fullIdx + 1 < dateHeaders.length) ? dateHeaders[fullIdx + 1].blockIndex : blocks.length;
+      // Join the HTML of the blocks for this section
+      const sectionHtml = blocks.slice(start, end).map(b => b.outerHTML).join('');
+      recentSections.push({ date: currentHeader.date, content: sectionHtml });
+    }
+    return { dates, recentSections };
   };
 
   const loadMeetingUpdates = async () => {
     setIsLoading(true);
     try {
       const meetings = await getMeetings();
-      const sevenDaysAgo = new Date();
-      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-      
       const updates: MeetingUpdate[] = meetings
-        .filter(meeting => !meeting.isDivider) // Filter out divider entries
+        .filter(meeting => !meeting.isDivider)
         .map(meeting => {
-          const updateDates = extractDateHeadings(meeting.content);
-          const recentDates = updateDates.filter(date => date >= sevenDaysAgo);
-          
+          const { dates, recentSections } = extractRecentSections(meeting.content);
           return {
             meeting,
-            updateDates: recentDates,
-            hasRecentUpdates: recentDates.length > 0
+            updateDates: dates,
+            hasRecentUpdates: dates.length > 0,
+            recentSections
           };
         })
-        .filter(update => update.hasRecentUpdates || new Date(update.meeting.updatedAt) >= sevenDaysAgo)
+        .filter(update => update.hasRecentUpdates)
         .sort((a, b) => {
-          // Sort by most recent update date
-          const aLatest = Math.max(
-            ...a.updateDates.map(d => d.getTime()),
-            a.meeting.updatedAt
-          );
-          const bLatest = Math.max(
-            ...b.updateDates.map(d => d.getTime()),
-            b.meeting.updatedAt
-          );
+          const aLatest = Math.max(...a.updateDates.map(d => d.getTime()));
+          const bLatest = Math.max(...b.updateDates.map(d => d.getTime()));
           return bLatest - aLatest;
         });
-      
       setMeetingUpdates(updates);
     } catch (error) {
       console.error('Error loading meeting updates:', error);
@@ -143,7 +159,7 @@ export const SummaryDialog: React.FC<SummaryDialogProps> = ({ isOpen, onClose })
           <div>
             <h2 className="text-2xl font-bold text-gray-900">Last 7 Days Summary</h2>
             <p className="text-gray-600 mt-1">
-              Meetings and updates from the past week
+              Content from meetings with updates in the past week
             </p>
           </div>
           <button
@@ -165,7 +181,7 @@ export const SummaryDialog: React.FC<SummaryDialogProps> = ({ isOpen, onClose })
             <div className="text-center py-12">
               <Calendar className="w-16 h-16 text-gray-300 mx-auto mb-4" />
               <h3 className="text-lg font-medium text-gray-900 mb-2">No Recent Updates</h3>
-              <p className="text-gray-600">No meetings or updates found in the last 7 days.</p>
+              <p className="text-gray-600">No meetings with updates found in the last 7 days.</p>
             </div>
           ) : (
             <div className="space-y-6">
@@ -184,36 +200,25 @@ export const SummaryDialog: React.FC<SummaryDialogProps> = ({ isOpen, onClose })
                       </div>
                     </div>
                   </div>
-
-                  {update.updateDates.length > 0 && (
+                  {update.recentSections.length > 0 && (
                     <div className="mb-3">
                       <h4 className="text-sm font-medium text-gray-700 mb-2">
-                        Recent Update Dates Found:
+                        Recent Updates:
                       </h4>
-                      <div className="flex flex-wrap gap-2">
-                        {update.updateDates.map((date, dateIndex) => (
-                          <span
-                            key={dateIndex}
-                            className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
-                          >
-                            {formatDate(date)}
-                          </span>
+                      <div className="space-y-4">
+                        {update.recentSections.map((section, idx) => (
+                          <div key={idx} className="bg-white rounded border p-3">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                {formatDate(section.date)}
+                              </span>
+                            </div>
+                            <div className="prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: section.content || 'No content' }} />
+                          </div>
                         ))}
                       </div>
                     </div>
                   )}
-
-                  {/* Show a preview of the meeting content */}
-                  <div className="text-sm text-gray-600">
-                    <div className="max-h-24 overflow-hidden">
-                      <div 
-                        className="prose prose-sm max-w-none"
-                        dangerouslySetInnerHTML={{ 
-                          __html: update.meeting.content.substring(0, 200) + '...' 
-                        }} 
-                      />
-                    </div>
-                  </div>
                 </div>
               ))}
             </div>
