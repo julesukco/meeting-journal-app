@@ -66,14 +66,14 @@ function App() {
         return;
       }
 
-      // Cmd+Left Arrow: Toggle left navigation
-      if (e.metaKey && e.key === 'ArrowLeft') {
+      // Option+Left Arrow: Toggle left navigation
+      if (e.altKey && e.key === 'ArrowLeft') {
         e.preventDefault();
         setIsLeftNavVisible((v) => !v);
       }
       
-      // Cmd+Right Arrow: Toggle right navigation
-      if (e.metaKey && e.key === 'ArrowRight') {
+      // Option+Right Arrow: Toggle right navigation
+      if (e.altKey && e.key === 'ArrowRight') {
         e.preventDefault();
         setIsRightNavVisible((v) => !v);
       }
