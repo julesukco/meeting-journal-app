@@ -173,6 +173,66 @@ export const exportMeetings = async (): Promise<string> => {
   }
 };
 
+// Optimize database by compressing existing images
+export const optimizeDatabase = async (): Promise<{ originalSize: number; optimizedSize: number }> => {
+  try {
+    const meetings = await getMeetings();
+    let originalSize = 0;
+    let optimizedSize = 0;
+    
+    // Create a temporary canvas for image compression
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d')!;
+    
+    const compressImageInContent = (content: string): string => {
+      return content.replace(/<img[^>]+src="([^"]+)"[^>]*>/gi, (match, src) => {
+        if (src.startsWith('data:image/')) {
+          // This is a base64 image, try to compress it
+          const img = document.createElement('img');
+          img.onload = () => {
+            const maxWidth = 1200;
+            let { width, height } = img;
+            if (width > maxWidth) {
+              height = (height * maxWidth) / width;
+              width = maxWidth;
+            }
+            
+            canvas.width = width;
+            canvas.height = height;
+            ctx.drawImage(img, 0, 0, width, height);
+            
+            const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.8);
+            // Replace the image src in the content
+            content = content.replace(src, compressedDataUrl);
+          };
+          img.src = src;
+        }
+        return match;
+      });
+    };
+    
+    // Process each meeting
+    for (const meeting of meetings) {
+      const originalContent = meeting.content;
+      originalSize += originalContent.length;
+      
+      const optimizedContent = compressImageInContent(originalContent);
+      optimizedSize += optimizedContent.length;
+      
+      // Update the meeting with optimized content
+      meeting.content = optimizedContent;
+    }
+    
+    // Save the optimized meetings
+    await saveMeetings(meetings);
+    
+    return { originalSize, optimizedSize };
+  } catch (error) {
+    console.error('Error optimizing database:', error);
+    throw error;
+  }
+};
+
 // Import meetings from JSON string
 export const importMeetings = async (content: string): Promise<void> => {
   try {

@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Meeting, ActionItem } from './types';
 import { MeetingList } from './components/MeetingList';
@@ -15,6 +15,10 @@ function App() {
   const [meetings, setMeetings] = useState<Meeting[]>([]);
   const [selectedMeeting, setSelectedMeeting] = useState<Meeting | null>(null);
   const [actionItems, setActionItems] = useState<ActionItem[]>([]);
+  
+  // Add debouncing for saves
+  const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingMeetingUpdateRef = useRef<Meeting | null>(null);
   
   // Load data from IndexedDB on component mount
   useEffect(() => {
@@ -38,10 +42,55 @@ function App() {
   const [isLeftNavVisible, setIsLeftNavVisible] = useState(true);
   const [isRightNavVisible, setIsRightNavVisible] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
+  const [lastSaveTime, setLastSaveTime] = useState<number>(0);
 
-  // Save meetings to IndexedDB whenever they change
+  // Debounced save function
+  const debouncedSave = useCallback((meetingToSave: Meeting) => {
+    // Clear any existing timeout
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+    }
+    
+    // Store the pending update
+    pendingMeetingUpdateRef.current = meetingToSave;
+    
+    // Set a new timeout to save after 1 second of inactivity
+    saveTimeoutRef.current = setTimeout(async () => {
+      if (pendingMeetingUpdateRef.current) {
+        try {
+          const startTime = performance.now();
+          
+          // Update the meetings state with the pending update
+          setMeetings((prev) =>
+            prev.map((m) => (m.id === pendingMeetingUpdateRef.current!.id ? pendingMeetingUpdateRef.current! : m))
+          );
+          
+          // Save to IndexedDB
+          const currentMeetings = await getMeetings();
+          const updatedMeetings = currentMeetings.map((m) => 
+            m.id === pendingMeetingUpdateRef.current!.id ? pendingMeetingUpdateRef.current! : m
+          );
+          await saveMeetings(updatedMeetings);
+          
+          const endTime = performance.now();
+          const saveTime = endTime - startTime;
+          setLastSaveTime(saveTime);
+          
+          // Log performance metrics
+          console.log(`Save completed in ${saveTime.toFixed(2)}ms`);
+          
+          // Clear the pending update
+          pendingMeetingUpdateRef.current = null;
+        } catch (error) {
+          console.error('Error saving meeting to IndexedDB:', error);
+        }
+      }
+    }, 1000); // 1 second debounce
+  }, []);
+
+  // Save meetings to IndexedDB whenever they change (only for non-debounced updates)
   useEffect(() => {
-    if (meetings.length > 0) {
+    if (meetings.length > 0 && !pendingMeetingUpdateRef.current) {
       saveMeetings(meetings).catch(error => {
         console.error('Error saving meetings to IndexedDB:', error);
       });
@@ -56,6 +105,15 @@ function App() {
       });
     }
   }, [actionItems]);
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
+    };
+  }, []);
 
   // Global keyboard shortcut handler
   useEffect(() => {
@@ -111,12 +169,13 @@ function App() {
   }, []);
 
   const handleUpdateMeeting = useCallback((updatedMeeting: Meeting) => {
-    setMeetings((prev) =>
-      prev.map((m) => (m.id === updatedMeeting.id ? updatedMeeting : m))
-    );
+    // Update the selected meeting immediately for UI responsiveness
     setSelectedMeeting(updatedMeeting);
+    
+    // Use debounced save for the meeting content
+    debouncedSave(updatedMeeting);
 
-    // Extract action items from HTML content
+    // Extract action items from HTML content (debounced to avoid performance issues)
     const content = updatedMeeting.content;
     // This regex looks for "AI:" followed by text, even within HTML tags
     const aiRegex = /AI:\s*([^<]+)/g;
@@ -157,7 +216,7 @@ function App() {
 
       return [...otherMeetingsItems, ...currentMeetingItems];
     });
-  }, []);
+  }, [debouncedSave]);
 
   const toggleActionItem = useCallback((id: string) => {
     setActionItems((prev) =>
@@ -321,6 +380,7 @@ function App() {
                     onExport={handleExport}
                     onImport={handleImport}
                     selectedMeeting={selectedMeeting}
+                    lastSaveTime={lastSaveTime}
                   />
                 </div>
               )}

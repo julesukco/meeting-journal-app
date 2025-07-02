@@ -110,6 +110,7 @@ const Editor: React.FC<EditorProps> = ({
 }) => {
   const [editorReady, setEditorReady] = useState(false);
   const editorRef = useRef<HTMLDivElement>(null);
+  const updateTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const editor = useEditor({
     extensions: [
@@ -142,10 +143,18 @@ const Editor: React.FC<EditorProps> = ({
     content: '',
     onUpdate: ({ editor }) => {
       if (meeting) {
-        onUpdateMeeting({
-          ...meeting,
-          content: editor.getHTML(),
-        });
+        // Clear any existing timeout
+        if (updateTimeoutRef.current) {
+          clearTimeout(updateTimeoutRef.current);
+        }
+        
+        // Debounce the update to improve performance with large content
+        updateTimeoutRef.current = setTimeout(() => {
+          onUpdateMeeting({
+            ...meeting,
+            content: editor.getHTML(),
+          });
+        }, 300); // 300ms debounce for typing
       }
     },
     editorProps: {
@@ -157,8 +166,24 @@ const Editor: React.FC<EditorProps> = ({
         const html = event.clipboardData?.getData('text/html') || '';
         const files = event.clipboardData?.files;
 
-        // Handle pasted images (leave as is)
-        if (files && files.length > 0) return false;
+        // Handle pasted images with compression
+        if (files && files.length > 0) {
+          const file = files[0];
+          if (file.type.startsWith('image/')) {
+            // Compress pasted images
+            compressImage(file).then(compressedDataUrl => {
+              if (editor) {
+                editor.chain().focus().setImage({ src: compressedDataUrl }).run();
+              }
+            }).catch(error => {
+              console.error('Error compressing pasted image:', error);
+              // Fallback to original if compression fails
+              return false;
+            });
+            return true; // Tell TipTap we handled the paste
+          }
+          return false;
+        }
 
         // Handle HTML table
         if (html && /<table[\s>]/i.test(html)) {
@@ -203,29 +228,81 @@ const Editor: React.FC<EditorProps> = ({
     },
   });
 
-  // Handle image upload
-  const addImage = useCallback(() => {
+  // Image compression utility
+  const compressImage = useCallback((file: File, maxWidth = 1200, quality = 0.8): Promise<string> => {
+    return new Promise((resolve) => {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d')!;
+      const img = document.createElement('img');
+      
+      img.onload = () => {
+        // Calculate new dimensions while maintaining aspect ratio
+        let { width, height } = img;
+        if (width > maxWidth) {
+          height = (height * maxWidth) / width;
+          width = maxWidth;
+        }
+        
+        // Set canvas dimensions
+        canvas.width = width;
+        canvas.height = height;
+        
+        // Draw and compress image
+        ctx.drawImage(img, 0, 0, width, height);
+        
+        // Convert to compressed data URL
+        const compressedDataUrl = canvas.toDataURL('image/jpeg', quality);
+        resolve(compressedDataUrl);
+      };
+      
+      img.src = URL.createObjectURL(file);
+    });
+  }, []);
+
+  // Handle image upload with compression
+  const addImage = useCallback(async () => {
     const input = document.createElement('input');
     input.setAttribute('type', 'file');
     input.setAttribute('accept', 'image/*');
     input.click();
 
-    input.onchange = () => {
-      if (input.files) {
+    input.onchange = async () => {
+      if (input.files && input.files[0]) {
         const file = input.files[0];
-        const reader = new FileReader();
-        reader.onload = () => {
+        
+        try {
+          // Compress the image before adding to editor
+          const compressedDataUrl = await compressImage(file);
+          
           if (editor) {
-            editor.chain().focus().setImage({ src: reader.result as string }).run();
+            editor.chain().focus().setImage({ src: compressedDataUrl }).run();
           }
-        };
-        reader.readAsDataURL(file);
+        } catch (error) {
+          console.error('Error compressing image:', error);
+          // Fallback to original file if compression fails
+          const reader = new FileReader();
+          reader.onload = () => {
+            if (editor) {
+              editor.chain().focus().setImage({ src: reader.result as string }).run();
+            }
+          };
+          reader.readAsDataURL(file);
+        }
       }
     };
-  }, [editor]);
+  }, [editor, compressImage]);
 
   useEffect(() => {
     setEditorReady(true);
+  }, []);
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (updateTimeoutRef.current) {
+        clearTimeout(updateTimeoutRef.current);
+      }
+    };
   }, []);
 
   // Only set content when the meeting changes (not on every update)
