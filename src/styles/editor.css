@@ -126,6 +126,20 @@
   font-size: 0.875em;
 }
 
+/* Font size button styles */
+.font-size-button {
+  font-weight: bold;
+  font-family: 'Arial', sans-serif;
+}
+
+.font-size-button.decrease {
+  font-size: 14px;
+}
+
+.font-size-button.increase {
+  font-size: 16px;
+}
+
 /* Table styles */
 .ProseMirror table {
   border-collapse: collapse;

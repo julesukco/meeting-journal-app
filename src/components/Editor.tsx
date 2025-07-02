@@ -77,6 +77,32 @@ const ResizableImage = Extension.create({
   },
 });
 
+// Custom font size extension that extends TextStyle
+const FontSize = Extension.create({
+  name: 'fontSize',
+  addGlobalAttributes() {
+    return [
+      {
+        types: ['textStyle'],
+        attributes: {
+          fontSize: {
+            default: null,
+            parseHTML: element => element.style.fontSize,
+            renderHTML: attributes => {
+              if (!attributes.fontSize) {
+                return {};
+              }
+              return {
+                style: `font-size: ${attributes.fontSize}`,
+              };
+            },
+          },
+        },
+      },
+    ];
+  },
+});
+
 const Editor: React.FC<EditorProps> = ({ 
   meeting, 
   onUpdateMeeting,
@@ -91,6 +117,8 @@ const Editor: React.FC<EditorProps> = ({
       TaskList,
       TaskItem.configure({ nested: true }),
       TaskListTabIndent,
+      TextStyle,
+      FontSize,
       Image.configure({
         allowBase64: true,
         HTMLAttributes: {
@@ -217,7 +245,7 @@ const Editor: React.FC<EditorProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editor, meeting?.id]);
 
-  // Add keyboard shortcut for task list
+  // Add keyboard shortcut for task list and font size
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Check for Command + Shift + 9 (Mac) or Ctrl + Shift + 9 (Windows)
@@ -230,6 +258,15 @@ const Editor: React.FC<EditorProps> = ({
             editor.chain().focus().toggleTaskList().run();
           }
         }
+      }
+      // Font size shortcuts: Cmd/Ctrl + = for increase, Cmd/Ctrl + - for decrease
+      if ((e.metaKey || e.ctrlKey) && e.key === '=' && !e.shiftKey) {
+        e.preventDefault();
+        increaseFontSize();
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key === '-') {
+        e.preventDefault();
+        decreaseFontSize();
       }
       // Custom: Tab/Shift+Tab to indent/outdent task list items
       if (editor && editor.isActive('taskItem')) {
@@ -331,6 +368,33 @@ const Editor: React.FC<EditorProps> = ({
 
   const inTable = editor?.isActive('table');
 
+  // Font size change handlers
+  const increaseFontSize = () => {
+    if (editor) {
+      const currentSize = editor.getAttributes('textStyle').fontSize;
+      let newSize = '1.2em';
+      if (currentSize) {
+        const size = parseFloat(currentSize);
+        const unit = currentSize.replace(/[\d.]/g, '');
+        newSize = `${Math.min(size * 1.2, 3.0)}${unit}`;
+      }
+      editor.chain().focus().setMark('textStyle', { fontSize: newSize }).run();
+    }
+  };
+
+  const decreaseFontSize = () => {
+    if (editor) {
+      const currentSize = editor.getAttributes('textStyle').fontSize;
+      let newSize = '0.8em';
+      if (currentSize) {
+        const size = parseFloat(currentSize);
+        const unit = currentSize.replace(/[\d.]/g, '');
+        newSize = `${Math.max(size * 0.8, 0.5)}${unit}`;
+      }
+      editor.chain().focus().setMark('textStyle', { fontSize: newSize }).run();
+    }
+  };
+
   return (
     <div className="flex-1 flex flex-col h-screen" ref={editorRef}>
       {meeting ? (
@@ -364,6 +428,20 @@ const Editor: React.FC<EditorProps> = ({
               label="Strikethrough"
               icon={<s>S</s>}
               title="Strikethrough"
+            />
+            <ToolbarButton
+              onClick={decreaseFontSize}
+              active={!!editor?.getAttributes('textStyle').fontSize}
+              label="Decrease Font Size"
+              icon={<span className="font-size-button decrease">A-</span>}
+              title="Decrease Font Size (Cmd/Ctrl + -)"
+            />
+            <ToolbarButton
+              onClick={increaseFontSize}
+              active={!!editor?.getAttributes('textStyle').fontSize}
+              label="Increase Font Size"
+              icon={<span className="font-size-button increase">A+</span>}
+              title="Increase Font Size (Cmd/Ctrl + =)"
             />
             <ToolbarButton
               onClick={() => editor?.chain().focus().toggleCodeBlock().run()}
