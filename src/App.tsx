@@ -66,6 +66,19 @@ function App() {
         return;
       }
 
+      // Cmd+Left Arrow: Toggle left navigation
+      if (e.metaKey && e.key === 'ArrowLeft') {
+        e.preventDefault();
+        setIsLeftNavVisible((v) => !v);
+      }
+      
+      // Cmd+Right Arrow: Toggle right navigation
+      if (e.metaKey && e.key === 'ArrowRight') {
+        e.preventDefault();
+        setIsRightNavVisible((v) => !v);
+      }
+
+      // Backslash: Show search dialog
       if (e.key === '\\') {
         e.preventDefault();
         setShowSearch(true);
@@ -275,7 +288,7 @@ function App() {
                   <button
                     onClick={() => setIsLeftNavVisible((v) => !v)}
                     className="bg-white border border-gray-300 rounded-full p-1 shadow hover:bg-gray-100"
-                    title={isLeftNavVisible ? 'Hide left nav' : 'Show left nav'}
+                    title={isLeftNavVisible ? 'Hide left nav (⌘+←)' : 'Show left nav (⌘+←)'}
                   >
                     {isLeftNavVisible ? <ChevronLeft className="w-5 h-5" /> : <ChevronRight className="w-5 h-5" />}
                   </button>
@@ -285,7 +298,7 @@ function App() {
                   <button
                     onClick={() => setIsRightNavVisible((v) => !v)}
                     className={`rounded-full p-1 shadow border ${selectedMeeting && actionItems.filter(item => item.meetingId === selectedMeeting.id && !item.completed).length > 0 ? 'bg-blue-500 border-blue-500 hover:bg-blue-600' : 'bg-white border-gray-300 hover:bg-gray-100'}`}
-                    title={isRightNavVisible ? 'Hide right nav' : 'Show right nav'}
+                    title={isRightNavVisible ? 'Hide right nav (⌘+→)' : 'Show right nav (⌘+→)'}
                   >
                     {isRightNavVisible ? (
                       <ChevronRight className={`w-5 h-5 ${selectedMeeting && actionItems.filter(item => item.meetingId === selectedMeeting.id && !item.completed).length > 0 ? 'text-white' : 'text-gray-700'}`} />
