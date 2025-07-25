@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Meeting, ActionItem } from './types';
 import { MeetingList } from './components/MeetingList';
@@ -8,6 +8,7 @@ import { exportMeetings, importMeetings, getMeetings, saveMeetings } from './ser
 import { RightNav } from './components/RightNav';
 import { SearchDialog } from './components/SearchDialog';
 import { MeetingListScreen } from './screens/MeetingListScreen';
+import { MeetingView } from './components/MeetingView';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { get, set } from 'idb-keyval';
 
@@ -15,10 +16,6 @@ function App() {
   const [meetings, setMeetings] = useState<Meeting[]>([]);
   const [selectedMeeting, setSelectedMeeting] = useState<Meeting | null>(null);
   const [actionItems, setActionItems] = useState<ActionItem[]>([]);
-  
-  // Add debouncing for saves
-  const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pendingMeetingUpdateRef = useRef<Meeting | null>(null);
   
   // Load data from IndexedDB on component mount
   useEffect(() => {
@@ -31,6 +28,10 @@ function App() {
         // Load action items from IndexedDB
         const storedActionItems = await get('actionItems') || [];
         setActionItems(storedActionItems);
+        
+        // Load recent meetings from IndexedDB
+        const storedRecentMeetings = await get('recentMeetings') || [];
+        setRecentMeetings(storedRecentMeetings);
       } catch (error) {
         console.error('Error loading data from IndexedDB:', error);
       }
@@ -39,8 +40,6 @@ function App() {
     loadData();
   }, []);
 
-  const [isLeftNavVisible, setIsLeftNavVisible] = useState(true);
-  const [isRightNavVisible, setIsRightNavVisible] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
   const [lastSaveTime, setLastSaveTime] = useState<number>(0);
 
@@ -124,18 +123,6 @@ function App() {
         return;
       }
 
-      // Option+Left Arrow: Toggle left navigation
-      if (e.altKey && e.key === 'ArrowLeft') {
-        e.preventDefault();
-        setIsLeftNavVisible((v) => !v);
-      }
-      
-      // Option+Right Arrow: Toggle right navigation
-      if (e.altKey && e.key === 'ArrowRight') {
-        e.preventDefault();
-        setIsRightNavVisible((v) => !v);
-      }
-
       // Backslash: Show search dialog
       if (e.key === '\\') {
         e.preventDefault();
@@ -147,8 +134,28 @@ function App() {
     return () => window.removeEventListener('keydown', handleKeyPress);
   }, []);
 
+  const updateRecentMeetings = useCallback((newMeeting: Meeting) => {
+    setRecentMeetings((prev) => {
+      // If there's a currently selected meeting, add it to recent meetings
+      const toAdd = selectedMeeting ? [selectedMeeting] : [];
+      // Remove the new meeting if it's already in the list
+      const filtered = prev.filter(m => m.id !== newMeeting.id);
+      // Combine, remove any currently selected meeting from recent, and keep only the last 2
+      const updated = [...toAdd, ...filtered].slice(0, 2);
+      // Save to IndexedDB
+      set('recentMeetings', updated).catch(error => {
+        console.error('Error saving recent meetings to IndexedDB:', error);
+      });
+      return updated;
+    });
+  }, [selectedMeeting]);
+
   const handleMeetingSelect = (meeting: Meeting) => {
     setShowSearch(false);
+    // Only update recent meetings if we're changing to a different meeting
+    if (!selectedMeeting || selectedMeeting.id !== meeting.id) {
+      updateRecentMeetings(meeting);
+    }
     setSelectedMeeting(meeting);
   };
 
@@ -380,7 +387,6 @@ function App() {
                     onExport={handleExport}
                     onImport={handleImport}
                     selectedMeeting={selectedMeeting}
-                    lastSaveTime={lastSaveTime}
                   />
                 </div>
               )}
