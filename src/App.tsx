@@ -16,6 +16,11 @@ function App() {
   const [meetings, setMeetings] = useState<Meeting[]>([]);
   const [selectedMeeting, setSelectedMeeting] = useState<Meeting | null>(null);
   const [actionItems, setActionItems] = useState<ActionItem[]>([]);
+  const [isLeftNavVisible, setIsLeftNavVisible] = useState(true);
+  const [isRightNavVisible, setIsRightNavVisible] = useState(false);
+  const [recentMeetings, setRecentMeetings] = useState<any[]>([]); // Replace any[] with correct type if available
+  const pendingMeetingUpdateRef = React.useRef<Meeting | null>(null);
+  const saveTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
   
   // Load data from IndexedDB on component mount
   useEffect(() => {
@@ -335,62 +340,20 @@ function App() {
         <Route
           path="/meeting/:id"
           element={
-            <div className="flex h-screen">
-              {isLeftNavVisible && (
-                <div>
-                  <MeetingList
-                    meetings={meetings}
-                    selectedMeeting={selectedMeeting}
-                    onSelectMeeting={handleMeetingSelect}
-                    onNewMeeting={handleNewMeeting}
-                    onUpdateMeeting={handleUpdateMeeting}
-                    onReorderMeetings={handleReorderMeetings}
-                  />
-                </div>
-              )}
-              <div className="flex-1 flex flex-col h-screen overflow-y-auto">
-                {/* Header row with nav toggles and meeting title */}
-                <div className="sticky top-0 z-10 flex items-center justify-between px-2 py-2 border-b border-gray-200 bg-white">
-                  <button
-                    onClick={() => setIsLeftNavVisible((v) => !v)}
-                    className="bg-white border border-gray-300 rounded-full p-1 shadow hover:bg-gray-100"
-                    title={isLeftNavVisible ? 'Hide left nav (⌘+←)' : 'Show left nav (⌘+←)'}
-                  >
-                    {isLeftNavVisible ? <ChevronLeft className="w-5 h-5" /> : <ChevronRight className="w-5 h-5" />}
-                  </button>
-                  <div className="flex-1 text-center text-2xl font-bold truncate px-2">
-                    {selectedMeeting ? selectedMeeting.title : ''}
-                  </div>
-                  <button
-                    onClick={() => setIsRightNavVisible((v) => !v)}
-                    className={`rounded-full p-1 shadow border ${selectedMeeting && actionItems.filter(item => item.meetingId === selectedMeeting.id && !item.completed).length > 0 ? 'bg-blue-500 border-blue-500 hover:bg-blue-600' : 'bg-white border-gray-300 hover:bg-gray-100'}`}
-                    title={isRightNavVisible ? 'Hide right nav (⌘+→)' : 'Show right nav (⌘+→)'}
-                  >
-                    {isRightNavVisible ? (
-                      <ChevronRight className={`w-5 h-5 ${selectedMeeting && actionItems.filter(item => item.meetingId === selectedMeeting.id && !item.completed).length > 0 ? 'text-white' : 'text-gray-700'}`} />
-                    ) : (
-                      <ChevronLeft className={`w-5 h-5 ${selectedMeeting && actionItems.filter(item => item.meetingId === selectedMeeting.id && !item.completed).length > 0 ? 'text-white' : 'text-gray-700'}`} />
-                    )}
-                  </button>
-                </div>
-                <Editor
-                  meeting={selectedMeeting}
-                  onUpdateMeeting={handleUpdateMeeting}
-                  processCompletedItems={processCompletedItems}
-                />
-              </div>
-              {isRightNavVisible && (
-                <div className="h-screen overflow-y-auto">
-                  <RightNav
-                    actionItems={selectedMeeting ? actionItems.filter(item => item.meetingId === selectedMeeting.id) : []}
-                    onToggleActionItem={toggleActionItem}
-                    onExport={handleExport}
-                    onImport={handleImport}
-                    selectedMeeting={selectedMeeting}
-                  />
-                </div>
-              )}
-            </div>
+            <MeetingView
+              meetings={meetings}
+              selectedMeeting={selectedMeeting}
+              actionItems={actionItems}
+              recentMeetings={recentMeetings}
+              onSelectMeeting={handleMeetingSelect}
+              onNewMeeting={handleNewMeeting}
+              onUpdateMeeting={handleUpdateMeeting}
+              onReorderMeetings={handleReorderMeetings}
+              onToggleActionItem={toggleActionItem}
+              onExport={handleExport}
+              onImport={handleImport}
+              processCompletedItems={processCompletedItems}
+            />
           }
         />
         <Route path="*" element={<Navigate to="/" replace />} />
