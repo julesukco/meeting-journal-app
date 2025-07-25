@@ -325,6 +325,24 @@ const Editor: React.FC<EditorProps> = ({
   // Add keyboard shortcut for task list and font size
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      console.log('KeyDown event:', e);
+      // Table hotkeys
+      if (e.metaKey && e.ctrlKey && e.key.toLowerCase() === 't') {
+        e.preventDefault();
+        editor?.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run();
+      }
+      if (e.metaKey && e.ctrlKey && e.key.toLowerCase() === 'r') {
+        e.preventDefault();
+        if (editor?.isActive('table')) {
+          editor.chain().focus().addRowAfter().run();
+        }
+      }
+      if (e.metaKey && e.ctrlKey && e.key.toLowerCase() === 'c') {
+        e.preventDefault();
+        if (editor?.isActive('table')) {
+          editor.chain().focus().addColumnAfter().run();
+        }
+      }
       // Check for Command + Shift + 9 (Mac) or Ctrl + Shift + 9 (Windows)
       if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === '9') {
         e.preventDefault();
