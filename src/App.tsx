@@ -155,7 +155,7 @@ function App() {
     });
   }, [selectedMeeting]);
 
-  const handleMeetingSelect = (meeting: Meeting) => {
+  const handleMeetingSelect = (meeting: Meeting, isTabClick?: boolean) => {
     setShowSearch(false);
     // Only update recent meetings if we're changing to a different meeting
     if (!selectedMeeting || selectedMeeting.id !== meeting.id) {

@@ -12,7 +12,7 @@ interface MeetingViewProps {
   selectedMeeting: Meeting | null;
   actionItems: ActionItem[];
   recentMeetings: Meeting[];
-  onSelectMeeting: (meeting: Meeting) => void;
+  onSelectMeeting: (meeting: Meeting, isTabClick?: boolean) => void;
   onNewMeeting: () => void;
   onUpdateMeeting: (meeting: Meeting) => void;
   onReorderMeetings: (newOrder: Meeting[]) => void;
@@ -40,6 +40,7 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
   const { id } = useParams();
   const [isLeftNavVisible, setIsLeftNavVisible] = useState(true);
   const [isRightNavVisible, setIsRightNavVisible] = useState(false);
+  const [isFromTabClick, setIsFromTabClick] = useState(false);
 
   // Set selected meeting based on URL parameter
   useEffect(() => {
@@ -52,12 +53,14 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
   }, [id, meetings, selectedMeeting, onSelectMeeting]);
 
   const handleTabMeetingSelect = useCallback((meeting: Meeting) => {
-    onSelectMeeting(meeting);
+    setIsFromTabClick(true);
+    onSelectMeeting(meeting, true); // Pass true to indicate this is a tab click
     navigate(`/meeting/${meeting.id}`);
   }, [onSelectMeeting, navigate]);
 
   const handleLeftNavMeetingSelect = useCallback((meeting: Meeting) => {
-    onSelectMeeting(meeting);
+    setIsFromTabClick(false);
+    onSelectMeeting(meeting, false); // Pass false to indicate this is a nav click
     navigate(`/meeting/${meeting.id}`);
   }, [onSelectMeeting, navigate]);
 
@@ -136,6 +139,8 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
           meeting={selectedMeeting}
           onUpdateMeeting={onUpdateMeeting}
           processCompletedItems={processCompletedItems}
+          isFromTabClick={isFromTabClick}
+          onTabClickHandled={() => setIsFromTabClick(false)}
         />
       </div>
       {isRightNavVisible && (

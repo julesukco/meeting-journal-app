@@ -24,6 +24,8 @@ interface EditorProps {
   meeting: Meeting | null;
   onUpdateMeeting: (meeting: Meeting) => void;
   processCompletedItems: (content: string) => string;
+  isFromTabClick?: boolean;
+  onTabClickHandled?: () => void;
 }
 
 // Minimal custom extension for task list tab/shift+tab indentation
@@ -107,6 +109,8 @@ const Editor: React.FC<EditorProps> = ({
   meeting, 
   onUpdateMeeting,
   processCompletedItems,
+  isFromTabClick,
+  onTabClickHandled,
 }) => {
   const [editorReady, setEditorReady] = useState(false);
   const editorRef = useRef<HTMLDivElement>(null);
@@ -305,28 +309,67 @@ const Editor: React.FC<EditorProps> = ({
     };
   }, []);
 
+  // Save cursor position when switching away from a meeting
+  const previousMeetingRef = useRef<Meeting | null>(null);
+  useEffect(() => {
+    if (editor && previousMeetingRef.current && previousMeetingRef.current.id !== meeting?.id) {
+      // Save cursor position of the previous meeting
+      const selection = editor.state.selection;
+      const updatedPreviousMeeting = {
+        ...previousMeetingRef.current,
+        cursorPosition: { from: selection.from, to: selection.to }
+      };
+      onUpdateMeeting(updatedPreviousMeeting);
+    }
+    previousMeetingRef.current = meeting;
+  }, [editor, meeting, onUpdateMeeting]);
+
+  // Handle cursor position restoration for tab clicks
+  useEffect(() => {
+    if (editor && meeting && isFromTabClick && meeting.cursorPosition) {
+      // Restore cursor position for tab clicks
+      const { from, to } = meeting.cursorPosition;
+      try {
+        editor.commands.setTextSelection({ from, to });
+        editor.commands.focus();
+      } catch (error) {
+        // If position is invalid, fall back to end positioning
+        editor.commands.focus('end');
+      }
+      // Mark tab click as handled
+      onTabClickHandled?.();
+    }
+  }, [editor, meeting, isFromTabClick, onTabClickHandled]);
+
   // Only set content when the meeting changes (not on every update)
   useEffect(() => {
     if (editor && meeting) {
       editor.commands.setContent(processCompletedItems(meeting.content));
-      // Position cursor at the end and scroll to bottom
-      editor.commands.focus('end');
-      const editorElement = document.querySelector('.ProseMirror');
-      if (editorElement) {
-        editorElement.scrollTop = editorElement.scrollHeight;
+      // Only position cursor at end and scroll for non-tab clicks or meetings without saved cursor position
+      if (!isFromTabClick || !meeting.cursorPosition) {
+        editor.commands.focus('end');
+        const editorElement = document.querySelector('.ProseMirror');
+        if (editorElement) {
+          editorElement.scrollTop = editorElement.scrollHeight;
+        }
       }
     } else if (editor && !meeting) {
       editor.commands.setContent('');
     }
     // Only run when meeting id changes
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editor, meeting?.id]);
+  }, [editor, meeting?.id, processCompletedItems]);
 
   // Add keyboard shortcut for task list and font size
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       console.log('KeyDown event:', e);
-      // Table hotkeys
+      // Table hotkeys:
+      // Cmd/Ctrl + Ctrl + T: Insert table
+      // Cmd/Ctrl + Ctrl + R: Add row after
+      // Cmd/Ctrl + Ctrl + C: Add column after  
+      // Cmd/Ctrl + Shift + R: Delete row
+      // Cmd/Ctrl + Shift + C: Delete column
       if (e.metaKey && e.ctrlKey && e.key.toLowerCase() === 't') {
         e.preventDefault();
         editor?.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run();
@@ -341,6 +384,20 @@ const Editor: React.FC<EditorProps> = ({
         e.preventDefault();
         if (editor?.isActive('table')) {
           editor.chain().focus().addColumnAfter().run();
+        }
+      }
+      // Delete table row hotkey: Cmd/Ctrl + Shift + R
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'r') {
+        e.preventDefault();
+        if (editor?.isActive('table')) {
+          editor.chain().focus().deleteRow().run();
+        }
+      }
+      // Delete table column hotkey: Cmd/Ctrl + Shift + C
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'c') {
+        e.preventDefault();
+        if (editor?.isActive('table')) {
+          editor.chain().focus().deleteColumn().run();
         }
       }
       // Check for Command + Shift + 9 (Mac) or Ctrl + Shift + 9 (Windows)
