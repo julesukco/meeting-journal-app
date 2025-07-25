@@ -566,74 +566,36 @@ const Editor: React.FC<EditorProps> = ({
               icon={<span>&#9744;</span>}
               title="Checkbox"
             />
-            <input
-              type="color"
-              title="Text Color"
-              className="mx-1 w-6 h-6 p-0 border-0 bg-transparent cursor-pointer"
-              value={editor?.getAttributes('textStyle').color || '#222222'}
-              onChange={e => editor?.chain().focus().setColor(e.target.value).run()}
-              style={{ verticalAlign: 'middle' }}
-            />
+            {/* Text Color Button with colored 'A' icon */}
+            <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', margin: '0 0.25rem' }} title="Text Color">
+              <span
+                style={{
+                  color: editor?.getAttributes('textStyle').color || '#222222',
+                  fontWeight: 700,
+                  fontSize: '1.2em',
+                  padding: '0 4px',
+                  userSelect: 'none',
+                }}
+              >A</span>
+              <input
+                type="color"
+                style={{
+                  opacity: 0,
+                  width: 0,
+                  height: 0,
+                  position: 'absolute',
+                  pointerEvents: 'none',
+                }}
+                value={editor?.getAttributes('textStyle').color || '#222222'}
+                onChange={e => editor?.chain().focus().setColor(e.target.value).run()}
+                tabIndex={-1}
+              />
+            </label>
             <ToolbarButton
               onClick={() => editor?.chain().focus().setHorizontalRule().run()}
               label="Horizontal Rule"
               icon={<span>&mdash;</span>}
               title="Horizontal Rule"
-            />
-            <ToolbarButton
-              onClick={() => editor?.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()}
-              label="Insert Table"
-              icon={<span>&#8863;</span>}
-              title="Insert Table"
-            />
-            <ToolbarButton
-              onClick={() => editor?.chain().focus().addColumnBefore().run()}
-              label="Add Column Before"
-              icon={<span>⫷</span>}
-              title={inTable ? "Add Column Before" : "Add Column Before (Insert a table first)"}
-              disabled={!inTable}
-            />
-            <ToolbarButton
-              onClick={() => editor?.chain().focus().addColumnAfter().run()}
-              label="Add Column After"
-              icon={<span>⫸</span>}
-              title={inTable ? "Add Column After" : "Add Column After (Insert a table first)"}
-              disabled={!inTable}
-            />
-            <ToolbarButton
-              onClick={() => editor?.chain().focus().addRowBefore().run()}
-              label="Add Row Before"
-              icon={<span>⇧</span>}
-              title={inTable ? "Add Row Before" : "Add Row Before (Insert a table first)"}
-              disabled={!inTable}
-            />
-            <ToolbarButton
-              onClick={() => editor?.chain().focus().addRowAfter().run()}
-              label="Add Row After"
-              icon={<span>⇩</span>}
-              title={inTable ? "Add Row After" : "Add Row After (Insert a table first)"}
-              disabled={!inTable}
-            />
-            <ToolbarButton
-              onClick={() => editor?.chain().focus().deleteTable().run()}
-              label="Delete Table"
-              icon={<span>&#10006;</span>}
-              title={inTable ? "Delete Table" : "Delete Table (Insert a table first)"}
-              disabled={!inTable}
-            />
-            <ToolbarButton
-              onClick={() => editor?.chain().focus().deleteRow().run()}
-              label="Delete Row"
-              icon={<span>&#10539;</span>}
-              title={inTable ? "Delete Row" : "Delete Row (Insert a table first)"}
-              disabled={!inTable}
-            />
-            <ToolbarButton
-              onClick={() => editor?.chain().focus().deleteColumn().run()}
-              label="Delete Column"
-              icon={<span>&#10540;</span>}
-              title={inTable ? "Delete Column" : "Delete Column (Insert a table first)"}
-              disabled={!inTable}
             />
             <ToolbarButton
               onClick={addImage}
