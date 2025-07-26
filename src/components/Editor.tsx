@@ -343,6 +343,20 @@ const Editor: React.FC<EditorProps> = ({
           editor.chain().focus().addColumnAfter().run();
         }
       }
+      // Delete row hotkey: Cmd/Ctrl + Shift + R
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'r') {
+        e.preventDefault();
+        if (editor?.isActive('table')) {
+          editor.chain().focus().deleteRow().run();
+        }
+      }
+      // Delete column hotkey: Cmd/Ctrl + Shift + C
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'c') {
+        e.preventDefault();
+        if (editor?.isActive('table')) {
+          editor.chain().focus().deleteColumn().run();
+        }
+      }
       // Check for Command + Shift + 9 (Mac) or Ctrl + Shift + 9 (Windows)
       if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === '9') {
         e.preventDefault();
@@ -603,6 +617,35 @@ const Editor: React.FC<EditorProps> = ({
               icon={<span>&#128247;</span>}
               title="Insert Image"
             />
+            {/* Table controls - only show when in a table */}
+            {inTable && (
+              <>
+                <ToolbarButton
+                  onClick={() => editor?.chain().focus().addRowAfter().run()}
+                  label="Add Row"
+                  icon={<span>+Row</span>}
+                  title="Add Row (Cmd/Ctrl + R)"
+                />
+                <ToolbarButton
+                  onClick={() => editor?.chain().focus().addColumnAfter().run()}
+                  label="Add Column"
+                  icon={<span>+Col</span>}
+                  title="Add Column (Cmd/Ctrl + C)"
+                />
+                <ToolbarButton
+                  onClick={() => editor?.chain().focus().deleteRow().run()}
+                  label="Delete Row"
+                  icon={<span>-Row</span>}
+                  title="Delete Row (Cmd/Ctrl + Shift + R)"
+                />
+                <ToolbarButton
+                  onClick={() => editor?.chain().focus().deleteColumn().run()}
+                  label="Delete Column"
+                  icon={<span>-Col</span>}
+                  title="Delete Column (Cmd/Ctrl + Shift + C)"
+                />
+              </>
+            )}
             <ToolbarButton
               onClick={() => editor?.chain().focus().undo().run()}
               label="Undo"
