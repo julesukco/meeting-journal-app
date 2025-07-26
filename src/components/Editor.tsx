@@ -347,14 +347,20 @@ const Editor: React.FC<EditorProps> = ({
       if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'r') {
         e.preventDefault();
         if (editor?.isActive('table')) {
-          editor.chain().focus().deleteRow().run();
+          // Use the exact same approach as the toolbar buttons
+          setTimeout(() => {
+            editor?.chain().focus().deleteRow().run();
+          }, 10);
         }
       }
       // Delete column hotkey: Cmd/Ctrl + Shift + C
       if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'c') {
         e.preventDefault();
         if (editor?.isActive('table')) {
-          editor.chain().focus().deleteColumn().run();
+          // Use the exact same approach as the toolbar buttons
+          setTimeout(() => {
+            editor?.chain().focus().deleteColumn().run();
+          }, 10);
         }
       }
       // Check for Command + Shift + 9 (Mac) or Ctrl + Shift + 9 (Windows)
