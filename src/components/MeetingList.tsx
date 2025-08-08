@@ -227,19 +227,6 @@ export function MeetingList({
     // Handle the reorder through the unified system
     const newGroup = destGroup === 'ungrouped' ? '' : destGroup;
     
-    // Debug logging for virtual meetings only
-    if (draggableId.startsWith('virtual-')) {
-      console.log('Virtual meeting drag:', {
-        draggableId,
-        destIndex,
-        newSortOrder,
-        adjacentItems: {
-          prev: destIndex > 0 ? currentGroupItems[destIndex - 1] : null,
-          next: destIndex < currentGroupItems.length ? currentGroupItems[destIndex] : null
-        }
-      });
-    }
-    
     handleItemReorder(draggableId, newGroup, newSortOrder);
   };
 
