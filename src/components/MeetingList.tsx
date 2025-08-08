@@ -169,28 +169,40 @@ export function MeetingList({
     
     const destIndex = destination.index;
     
-    // Calculate new sort order based on position
+    // Calculate sort order that works with existing items, avoiding conflicts
     let newSortOrder: number;
     
     if (destIndex === 0) {
-      // Moving to start of group
-      const firstItem = currentGroupItems[0];
-      newSortOrder = firstItem ? (firstItem.sortOrder || firstItem.createdAt) - 1000 : Date.now();
+      // Moving to start - find the smallest sort order and go before it
+      const existingSorts = currentGroupItems.map(item => item.sortOrder || item.createdAt);
+      const minSort = Math.min(...existingSorts);
+      newSortOrder = minSort - 1000;
     } else if (destIndex >= currentGroupItems.length) {
-      // Moving to end of group
-      const lastItem = currentGroupItems[currentGroupItems.length - 1];
-      newSortOrder = lastItem ? (lastItem.sortOrder || lastItem.createdAt) + 1000 : Date.now();
+      // Moving to end - find the largest sort order and go after it
+      const existingSorts = currentGroupItems.map(item => item.sortOrder || item.createdAt);
+      const maxSort = Math.max(...existingSorts);
+      newSortOrder = maxSort + 1000;
     } else {
-      // Moving between items
+      // Moving between items - use the actual adjacent items' sort orders
       const prevItem = currentGroupItems[destIndex - 1];
       const nextItem = currentGroupItems[destIndex];
+      
       const prevSort = prevItem ? (prevItem.sortOrder || prevItem.createdAt) : 0;
       const nextSort = nextItem ? (nextItem.sortOrder || nextItem.createdAt) : Date.now() + 1000;
-      newSortOrder = (prevSort + nextSort) / 2;
+      
+      // Calculate midpoint, but ensure we have enough gap
+      const gap = nextSort - prevSort;
+      if (gap > 100) {
+        newSortOrder = prevSort + Math.floor(gap / 2);
+      } else {
+        // If gap is too small, create more space by using a fraction
+        newSortOrder = prevSort + (gap / 2);
+      }
     }
 
     // Handle the reorder through the unified system
     const newGroup = destGroup === 'ungrouped' ? '' : destGroup;
+    
     handleItemReorder(draggableId, newGroup, newSortOrder);
   };
 

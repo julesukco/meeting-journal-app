@@ -205,8 +205,12 @@ function App() {
       }
     });
     
-    // Sort by sortOrder to maintain proper positioning
-    return displayMeetings.sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+    // Sort by sortOrder, falling back to createdAt for consistent ordering
+    return displayMeetings.sort((a, b) => {
+      const aSortOrder = a.sortOrder || a.createdAt;
+      const bSortOrder = b.sortOrder || b.createdAt;
+      return aSortOrder - bSortOrder;
+    });
   }, [meetings, virtualDuplicates]);
 
   // Cleanup timeout on unmount
