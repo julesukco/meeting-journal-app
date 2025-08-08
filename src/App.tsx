@@ -131,6 +131,8 @@ function App() {
       id: `virtual-${meeting.id}-${now}`,
       originalMeetingId: meeting.id,
       displayTitle: `${meeting.title} (Copy)`,
+      group: meeting.group,
+      sortOrder: now, // Use timestamp as initial sort order
       createdAt: now
     };
     
@@ -142,6 +144,31 @@ function App() {
     setVirtualDuplicates(prev => prev.filter(d => d.id !== duplicateId));
   }, []);
 
+  // Function to update a virtual duplicate's group and sort order
+  const updateVirtualDuplicateGroup = useCallback((duplicateId: string, newGroup: string, newSortOrder?: number) => {
+    setVirtualDuplicates(prev => prev.map(d => 
+      d.id === duplicateId 
+        ? { ...d, group: newGroup || undefined, sortOrder: newSortOrder !== undefined ? newSortOrder : d.sortOrder }
+        : d
+    ));
+  }, []);
+
+  // Function to handle reordering of all items (meetings and virtual duplicates)
+  const handleItemReorder = useCallback((draggedId: string, newGroup: string, newSortOrder: number) => {
+    const isVirtual = draggedId.startsWith('virtual-');
+    
+    if (isVirtual) {
+      updateVirtualDuplicateGroup(draggedId, newGroup, newSortOrder);
+    } else {
+      // Update real meeting
+      setMeetings(prev => prev.map(m => 
+        m.id === draggedId 
+          ? { ...m, group: newGroup || undefined, sortOrder: newSortOrder, updatedAt: Date.now() }
+          : m
+      ));
+    }
+  }, [updateVirtualDuplicateGroup]);
+
   // Function to get the original meeting from a virtual duplicate
   const getOriginalMeeting = useCallback((duplicateId: string): Meeting | null => {
     const duplicate = virtualDuplicates.find(d => d.id === duplicateId);
@@ -151,7 +178,15 @@ function App() {
 
   // Function to get all meetings including virtual duplicates for display
   const getDisplayMeetings = useCallback((): (Meeting & { isVirtual?: boolean; virtualId?: string; originalMeetingId?: string })[] => {
-    const displayMeetings: (Meeting & { isVirtual?: boolean; virtualId?: string; originalMeetingId?: string })[] = [...meetings];
+    const displayMeetings: (Meeting & { isVirtual?: boolean; virtualId?: string; originalMeetingId?: string })[] = [];
+    
+    // Add real meetings with sort order (use createdAt if no sortOrder)
+    meetings.forEach(meeting => {
+      displayMeetings.push({
+        ...meeting,
+        sortOrder: meeting.sortOrder || meeting.createdAt
+      });
+    });
     
     // Add virtual duplicates
     virtualDuplicates.forEach(duplicate => {
@@ -161,6 +196,8 @@ function App() {
           ...originalMeeting,
           id: duplicate.id, // Use virtual ID for selection
           title: duplicate.displayTitle,
+          group: duplicate.group, // Use the virtual duplicate's group
+          sortOrder: duplicate.sortOrder,
           isVirtual: true,
           virtualId: duplicate.id,
           originalMeetingId: duplicate.originalMeetingId
@@ -168,7 +205,8 @@ function App() {
       }
     });
     
-    return displayMeetings;
+    // Sort by sortOrder to maintain proper positioning
+    return displayMeetings.sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
   }, [meetings, virtualDuplicates]);
 
   // Cleanup timeout on unmount
@@ -429,6 +467,8 @@ function App() {
               processCompletedItems={processCompletedItems}
               createVirtualDuplicate={createVirtualDuplicate}
               removeVirtualDuplicate={removeVirtualDuplicate}
+              updateVirtualDuplicateGroup={updateVirtualDuplicateGroup}
+              handleItemReorder={handleItemReorder}
             />
           }
         />

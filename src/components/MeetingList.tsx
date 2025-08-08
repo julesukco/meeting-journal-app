@@ -14,6 +14,8 @@ interface MeetingListProps {
   onReorderMeetings?: (newOrder: Meeting[]) => void;
   createVirtualDuplicate?: (meeting: Meeting) => void;
   removeVirtualDuplicate?: (duplicateId: string) => void;
+  updateVirtualDuplicateGroup?: (duplicateId: string, newGroup: string, newSortOrder?: number) => void;
+  handleItemReorder?: (draggedId: string, newGroup: string, newSortOrder: number) => void;
 }
 
 export function MeetingList({
@@ -26,6 +28,8 @@ export function MeetingList({
   onReorderMeetings,
   createVirtualDuplicate,
   removeVirtualDuplicate,
+  updateVirtualDuplicateGroup,
+  handleItemReorder,
 }: MeetingListProps) {
   const EXPANDED_KEY = 'expandedMeetingGroups';
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(() => {
@@ -145,97 +149,38 @@ export function MeetingList({
   // Handle drag end for meetings
   const onDragEnd = (result: DropResult) => {
     const { source, destination, draggableId } = result;
-    if (!destination) return;
+    if (!destination || !handleItemReorder) return;
     
     const [sourceGroup, destGroup] = [source.droppableId, destination.droppableId];
     if (sourceGroup === destGroup && source.index === destination.index) return;
 
-    // Create a new array of meetings
-    const newMeetings = [...meetings];
+    // Get the current display order for calculating new sort order
+    const currentGroupItems = groupedMeetings[destGroup] || [];
+    const destIndex = destination.index;
     
-    // Find the meeting being moved by its ID
-    const meetingIndex = newMeetings.findIndex(m => m.id === draggableId);
-    if (meetingIndex === -1) return;
-
-    // Remove the meeting from its current position
-    const [movedMeeting] = newMeetings.splice(meetingIndex, 1);
+    // Calculate new sort order based on position
+    let newSortOrder: number;
     
-    // Calculate the absolute index in the full array
-    let absoluteIndex = 0;
-    let currentGroup = '';
-    let itemsInCurrentGroup = 0;
-
-    // If destination is ungrouped, we need to handle it specially
-    if (destGroup === 'ungrouped') {
-      if (destination.index === 0) {
-        // If we're adding to the first position, always insert at the start
-        absoluteIndex = 0;
-      } else {
-        // Find the first meeting that has a group
-        const firstGroupedMeeting = newMeetings.find(m => m.group);
-        if (firstGroupedMeeting) {
-          absoluteIndex = newMeetings.indexOf(firstGroupedMeeting);
-        } else {
-          absoluteIndex = newMeetings.length;
-        }
-        // Find the correct position within ungrouped
-        let ungroupedCount = 0;
-        for (let i = 0; i < absoluteIndex; i++) {
-          if (!newMeetings[i].group) {
-            ungroupedCount++;
-            if (ungroupedCount === destination.index) {
-              absoluteIndex = i + 1;
-              break;
-            }
-          }
-        }
-      }
+    if (destIndex === 0) {
+      // Moving to start of group
+      const firstItem = currentGroupItems[0];
+      newSortOrder = firstItem ? (firstItem.sortOrder || firstItem.createdAt) - 1000 : Date.now();
+    } else if (destIndex >= currentGroupItems.length) {
+      // Moving to end of group
+      const lastItem = currentGroupItems[currentGroupItems.length - 1];
+      newSortOrder = lastItem ? (lastItem.sortOrder || lastItem.createdAt) + 1000 : Date.now();
     } else {
-      // Handle regular groups as before
-      let found = false;
-      for (let i = 0; i < newMeetings.length; i++) {
-        const currentMeeting = newMeetings[i];
-        // If we're starting a new group
-        if (currentMeeting.group !== currentGroup) {
-          currentGroup = currentMeeting.group || 'ungrouped';
-          itemsInCurrentGroup = 0;
-        }
-        // If we've found the destination group and reached the target index
-        if (currentGroup === destGroup && itemsInCurrentGroup === destination.index) {
-          absoluteIndex = i;
-          found = true;
-          break;
-        }
-        itemsInCurrentGroup++;
-      }
-      // If group is empty or we haven't found the position (e.g., adding to end of group)
-      if (!found) {
-        // Find the index of the first meeting in the next group after destGroup
-        const nextGroupIndex = newMeetings.findIndex(m => {
-          return m.group && groups.indexOf(m.group) > groups.indexOf(destGroup);
-        });
-        if (nextGroupIndex !== -1) {
-          absoluteIndex = nextGroupIndex;
-        } else {
-          absoluteIndex = newMeetings.length;
-        }
-      }
+      // Moving between items
+      const prevItem = currentGroupItems[destIndex - 1];
+      const nextItem = currentGroupItems[destIndex];
+      const prevSort = prevItem ? (prevItem.sortOrder || prevItem.createdAt) : 0;
+      const nextSort = nextItem ? (nextItem.sortOrder || nextItem.createdAt) : Date.now() + 1000;
+      newSortOrder = (prevSort + nextSort) / 2;
     }
 
-    // Update the meeting's group
-    const updatedMeeting = {
-      ...movedMeeting,
-      group: destGroup === 'ungrouped' ? undefined : destGroup,
-      updatedAt: Date.now()
-    };
-
-    // Insert the meeting at the calculated position
-    newMeetings.splice(absoluteIndex, 0, updatedMeeting);
-
-    // Call onReorderMeetings with the new order
-    if (onReorderMeetings) {
-      onReorderMeetings(newMeetings);
-    }
+    // Handle the reorder through the unified system
+    const newGroup = destGroup === 'ungrouped' ? '' : destGroup;
+    handleItemReorder(draggableId, newGroup, newSortOrder);
   };
 
   // Render ungrouped first, then groups in the order of the groups array

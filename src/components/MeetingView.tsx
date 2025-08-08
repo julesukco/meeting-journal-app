@@ -22,6 +22,8 @@ interface MeetingViewProps {
   processCompletedItems: (content: string) => string;
   createVirtualDuplicate: (meeting: Meeting) => void;
   removeVirtualDuplicate: (duplicateId: string) => void;
+  updateVirtualDuplicateGroup: (duplicateId: string, newGroup: string, newSortOrder?: number) => void;
+  handleItemReorder: (draggedId: string, newGroup: string, newSortOrder: number) => void;
 }
 
 export const MeetingView: React.FC<MeetingViewProps> = ({
@@ -39,6 +41,8 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
   processCompletedItems,
   createVirtualDuplicate,
   removeVirtualDuplicate,
+  updateVirtualDuplicateGroup,
+  handleItemReorder,
 }) => {
   const navigate = useNavigate();
   const { id } = useParams();
@@ -104,6 +108,8 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
             onReorderMeetings={onReorderMeetings}
             createVirtualDuplicate={createVirtualDuplicate}
             removeVirtualDuplicate={removeVirtualDuplicate}
+            updateVirtualDuplicateGroup={updateVirtualDuplicateGroup}
+            handleItemReorder={handleItemReorder}
           />
         </div>
       )}
