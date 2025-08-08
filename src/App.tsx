@@ -146,11 +146,26 @@ function App() {
 
   // Function to update a virtual duplicate's group and sort order
   const updateVirtualDuplicateGroup = useCallback((duplicateId: string, newGroup: string, newSortOrder?: number) => {
-    setVirtualDuplicates(prev => prev.map(d => 
-      d.id === duplicateId 
-        ? { ...d, group: newGroup || undefined, sortOrder: newSortOrder !== undefined ? newSortOrder : d.sortOrder }
-        : d
-    ));
+    setVirtualDuplicates(prev => {
+      const updated = prev.map(d => 
+        d.id === duplicateId 
+          ? { ...d, group: newGroup || undefined, sortOrder: newSortOrder !== undefined ? newSortOrder : d.sortOrder }
+          : d
+      );
+      
+      // Debug logging for virtual duplicate updates
+      if (duplicateId.startsWith('virtual-')) {
+        const updatedItem = updated.find(d => d.id === duplicateId);
+        console.log('Virtual duplicate updated:', {
+          duplicateId,
+          newGroup,
+          newSortOrder,
+          updatedItem
+        });
+      }
+      
+      return updated;
+    });
   }, []);
 
   // Function to handle reordering of all items (meetings and virtual duplicates)

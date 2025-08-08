@@ -176,12 +176,24 @@ export function MeetingList({
       // Moving to start - find the smallest sort order and go before it
       const existingSorts = currentGroupItems.map(item => item.sortOrder || item.createdAt);
       const minSort = Math.min(...existingSorts);
-      newSortOrder = minSort - 1000;
+      
+      // For virtual meetings with timestamp-based sort orders, use appropriate decrement
+      if (draggableId.startsWith('virtual-') && minSort > 100000) {
+        newSortOrder = minSort - Math.max(1000, Math.floor(minSort * 0.001));
+      } else {
+        newSortOrder = minSort - 1000;
+      }
     } else if (destIndex >= currentGroupItems.length) {
       // Moving to end - find the largest sort order and go after it
       const existingSorts = currentGroupItems.map(item => item.sortOrder || item.createdAt);
       const maxSort = Math.max(...existingSorts);
-      newSortOrder = maxSort + 1000;
+      
+      // For virtual meetings with timestamp-based sort orders, use appropriate increment
+      if (draggableId.startsWith('virtual-') && maxSort > 100000) {
+        newSortOrder = maxSort + Math.max(1000, Math.floor(maxSort * 0.001));
+      } else {
+        newSortOrder = maxSort + 1000;
+      }
     } else {
       // Moving between items - use the actual adjacent items' sort orders
       const prevItem = currentGroupItems[destIndex - 1];
@@ -190,18 +202,43 @@ export function MeetingList({
       const prevSort = prevItem ? (prevItem.sortOrder || prevItem.createdAt) : 0;
       const nextSort = nextItem ? (nextItem.sortOrder || nextItem.createdAt) : Date.now() + 1000;
       
-      // Calculate midpoint, but ensure we have enough gap
-      const gap = nextSort - prevSort;
-      if (gap > 100) {
-        newSortOrder = prevSort + Math.floor(gap / 2);
+      // Special handling for virtual meetings to avoid sort order mismatches
+      if (draggableId.startsWith('virtual-') && (prevSort > 100000 || nextSort > 100000)) {
+        // If we're dealing with timestamp-based sort orders, ensure we stay in that range
+        const gap = nextSort - prevSort;
+        if (gap > 2) {
+          newSortOrder = Math.floor(prevSort + gap / 2);
+        } else {
+          // If items are too close, place it just after the previous item
+          newSortOrder = prevSort + 1;
+        }
       } else {
-        // If gap is too small, create more space by using a fraction
-        newSortOrder = prevSort + (gap / 2);
+        // Calculate midpoint for normal sort orders
+        const gap = nextSort - prevSort;
+        if (gap > 100) {
+          newSortOrder = prevSort + Math.floor(gap / 2);
+        } else {
+          // If gap is too small, create more space by using a fraction
+          newSortOrder = prevSort + (gap / 2);
+        }
       }
     }
 
     // Handle the reorder through the unified system
     const newGroup = destGroup === 'ungrouped' ? '' : destGroup;
+    
+    // Debug logging for virtual meetings only
+    if (draggableId.startsWith('virtual-')) {
+      console.log('Virtual meeting drag:', {
+        draggableId,
+        destIndex,
+        newSortOrder,
+        adjacentItems: {
+          prev: destIndex > 0 ? currentGroupItems[destIndex - 1] : null,
+          next: destIndex < currentGroupItems.length ? currentGroupItems[destIndex] : null
+        }
+      });
+    }
     
     handleItemReorder(draggableId, newGroup, newSortOrder);
   };
