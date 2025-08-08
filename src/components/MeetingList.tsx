@@ -80,7 +80,7 @@ export function MeetingList({
     setGroups(prev => Array.from(new Set([...prev, ...meetingGroups])));
   }, [meetings]);
 
-  // Group meetings by their group
+  // Group meetings by their group and sort within each group
   const groupedMeetings = meetings.reduce((acc, meeting) => {
     const group = meeting.group || '';
     if (!acc[group]) {
@@ -89,6 +89,11 @@ export function MeetingList({
     acc[group].push(meeting);
     return acc;
   }, {} as Record<string, (Meeting & { isVirtual?: boolean; virtualId?: string; originalMeetingId?: string })[]>);
+
+  // Sort meetings within each group by sortOrder
+  Object.keys(groupedMeetings).forEach(group => {
+    groupedMeetings[group].sort((a, b) => (a.sortOrder || a.createdAt) - (b.sortOrder || b.createdAt));
+  });
 
   // Move group up or down
   const moveGroup = (group: string, direction: 'up' | 'down') => {
@@ -154,8 +159,14 @@ export function MeetingList({
     const [sourceGroup, destGroup] = [source.droppableId, destination.droppableId];
     if (sourceGroup === destGroup && source.index === destination.index) return;
 
-    // Get the current display order for calculating new sort order
-    const currentGroupItems = groupedMeetings[destGroup] || [];
+    // Get the current items in the destination group, excluding the dragged item if it came from the same group
+    let currentGroupItems = groupedMeetings[destGroup] || [];
+    
+    // If moving within the same group, remove the dragged item from current items for accurate positioning
+    if (sourceGroup === destGroup) {
+      currentGroupItems = currentGroupItems.filter(item => item.id !== draggableId);
+    }
+    
     const destIndex = destination.index;
     
     // Calculate new sort order based on position
