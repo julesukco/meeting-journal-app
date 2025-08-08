@@ -12,6 +12,13 @@ export interface Meeting {
   updatedAt: number;
 }
 
+export interface VirtualDuplicate {
+  id: string;
+  originalMeetingId: string;
+  displayTitle: string;
+  createdAt: number;
+}
+
 export interface ActionItem {
   id: string;
   text: string;

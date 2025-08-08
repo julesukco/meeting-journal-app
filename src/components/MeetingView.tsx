@@ -8,11 +8,11 @@ import { MeetingTabs } from './MeetingTabs';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface MeetingViewProps {
-  meetings: Meeting[];
+  meetings: (Meeting & { isVirtual?: boolean; virtualId?: string; originalMeetingId?: string })[];
   selectedMeeting: Meeting | null;
   actionItems: ActionItem[];
   recentMeetings: Meeting[];
-  onSelectMeeting: (meeting: Meeting) => void;
+  onSelectMeeting: (meeting: Meeting & { isVirtual?: boolean; virtualId?: string; originalMeetingId?: string }) => void;
   onNewMeeting: () => void;
   onUpdateMeeting: (meeting: Meeting) => void;
   onReorderMeetings: (newOrder: Meeting[]) => void;
@@ -20,6 +20,8 @@ interface MeetingViewProps {
   onExport: () => void;
   onImport: (event: React.ChangeEvent<HTMLInputElement>) => void;
   processCompletedItems: (content: string) => string;
+  createVirtualDuplicate: (meeting: Meeting) => void;
+  removeVirtualDuplicate: (duplicateId: string) => void;
 }
 
 export const MeetingView: React.FC<MeetingViewProps> = ({
@@ -35,6 +37,8 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
   onExport,
   onImport,
   processCompletedItems,
+  createVirtualDuplicate,
+  removeVirtualDuplicate,
 }) => {
   const navigate = useNavigate();
   const { id } = useParams();
@@ -98,6 +102,8 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
             onNewMeeting={onNewMeeting}
             onUpdateMeeting={onUpdateMeeting}
             onReorderMeetings={onReorderMeetings}
+            createVirtualDuplicate={createVirtualDuplicate}
+            removeVirtualDuplicate={removeVirtualDuplicate}
           />
         </div>
       )}

@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { Meeting, ActionItem } from './types';
+import { Meeting, ActionItem, VirtualDuplicate } from './types';
 import { MeetingList } from './components/MeetingList';
 import { Editor } from './components/Editor';
 import { ActionItems } from './components/ActionItems';
@@ -16,11 +16,12 @@ function App() {
   const [meetings, setMeetings] = useState<Meeting[]>([]);
   const [selectedMeeting, setSelectedMeeting] = useState<Meeting | null>(null);
   const [actionItems, setActionItems] = useState<ActionItem[]>([]);
+  const [virtualDuplicates, setVirtualDuplicates] = useState<VirtualDuplicate[]>([]);
   const [isLeftNavVisible, setIsLeftNavVisible] = useState(true);
   const [isRightNavVisible, setIsRightNavVisible] = useState(false);
   const [recentMeetings, setRecentMeetings] = useState<any[]>([]); // Replace any[] with correct type if available
   const pendingMeetingUpdateRef = React.useRef<Meeting | null>(null);
-  const saveTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
+  const saveTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   
   // Load data from IndexedDB on component mount
   useEffect(() => {
@@ -33,6 +34,10 @@ function App() {
         // Load action items from IndexedDB
         const storedActionItems = await get('actionItems') || [];
         setActionItems(storedActionItems);
+        
+        // Load virtual duplicates from IndexedDB
+        const storedVirtualDuplicates = await get('virtualDuplicates') || [];
+        setVirtualDuplicates(storedVirtualDuplicates);
         
         // Load recent meetings from IndexedDB
         const storedRecentMeetings = await get('recentMeetings') || [];
@@ -110,6 +115,62 @@ function App() {
     }
   }, [actionItems]);
 
+  // Save virtual duplicates to IndexedDB whenever they change
+  useEffect(() => {
+    if (virtualDuplicates.length > 0) {
+      set('virtualDuplicates', virtualDuplicates).catch(error => {
+        console.error('Error saving virtual duplicates to IndexedDB:', error);
+      });
+    }
+  }, [virtualDuplicates]);
+
+  // Function to create a virtual duplicate
+  const createVirtualDuplicate = useCallback((meeting: Meeting) => {
+    const now = Date.now();
+    const virtualDuplicate: VirtualDuplicate = {
+      id: `virtual-${meeting.id}-${now}`,
+      originalMeetingId: meeting.id,
+      displayTitle: `${meeting.title} (Copy)`,
+      createdAt: now
+    };
+    
+    setVirtualDuplicates(prev => [...prev, virtualDuplicate]);
+  }, []);
+
+  // Function to remove a virtual duplicate
+  const removeVirtualDuplicate = useCallback((duplicateId: string) => {
+    setVirtualDuplicates(prev => prev.filter(d => d.id !== duplicateId));
+  }, []);
+
+  // Function to get the original meeting from a virtual duplicate
+  const getOriginalMeeting = useCallback((duplicateId: string): Meeting | null => {
+    const duplicate = virtualDuplicates.find(d => d.id === duplicateId);
+    if (!duplicate) return null;
+    return meetings.find(m => m.id === duplicate.originalMeetingId) || null;
+  }, [virtualDuplicates, meetings]);
+
+  // Function to get all meetings including virtual duplicates for display
+  const getDisplayMeetings = useCallback((): (Meeting & { isVirtual?: boolean; virtualId?: string; originalMeetingId?: string })[] => {
+    const displayMeetings: (Meeting & { isVirtual?: boolean; virtualId?: string; originalMeetingId?: string })[] = [...meetings];
+    
+    // Add virtual duplicates
+    virtualDuplicates.forEach(duplicate => {
+      const originalMeeting = meetings.find(m => m.id === duplicate.originalMeetingId);
+      if (originalMeeting) {
+        displayMeetings.push({
+          ...originalMeeting,
+          id: duplicate.id, // Use virtual ID for selection
+          title: duplicate.displayTitle,
+          isVirtual: true,
+          virtualId: duplicate.id,
+          originalMeetingId: duplicate.originalMeetingId
+        });
+      }
+    });
+    
+    return displayMeetings;
+  }, [meetings, virtualDuplicates]);
+
   // Cleanup timeout on unmount
   useEffect(() => {
     return () => {
@@ -155,14 +216,27 @@ function App() {
     });
   }, [selectedMeeting]);
 
-  const handleMeetingSelect = (meeting: Meeting) => {
+  // Function to handle meeting selection (works with both real and virtual meetings)
+  const handleMeetingSelect = useCallback((meeting: Meeting & { isVirtual?: boolean; virtualId?: string; originalMeetingId?: string }) => {
     setShowSearch(false);
-    // Only update recent meetings if we're changing to a different meeting
-    if (!selectedMeeting || selectedMeeting.id !== meeting.id) {
-      updateRecentMeetings(meeting);
+    
+    if (meeting.isVirtual) {
+      // For virtual meetings, find and select the original meeting
+      const originalMeeting = meetings.find(m => m.id === meeting.originalMeetingId);
+      if (originalMeeting) {
+        if (!selectedMeeting || selectedMeeting.id !== originalMeeting.id) {
+          updateRecentMeetings(originalMeeting);
+        }
+        setSelectedMeeting(originalMeeting);
+      }
+    } else {
+      // For real meetings, proceed as normal
+      if (!selectedMeeting || selectedMeeting.id !== meeting.id) {
+        updateRecentMeetings(meeting);
+      }
+      setSelectedMeeting(meeting);
     }
-    setSelectedMeeting(meeting);
-  };
+  }, [selectedMeeting, meetings, updateRecentMeetings]);
 
   const handleNewMeeting = useCallback(() => {
     const now = Date.now();
@@ -341,7 +415,7 @@ function App() {
           path="/meeting/:id"
           element={
             <MeetingView
-              meetings={meetings}
+              meetings={getDisplayMeetings()}
               selectedMeeting={selectedMeeting}
               actionItems={actionItems}
               recentMeetings={recentMeetings}
@@ -353,6 +427,8 @@ function App() {
               onExport={handleExport}
               onImport={handleImport}
               processCompletedItems={processCompletedItems}
+              createVirtualDuplicate={createVirtualDuplicate}
+              removeVirtualDuplicate={removeVirtualDuplicate}
             />
           }
         />

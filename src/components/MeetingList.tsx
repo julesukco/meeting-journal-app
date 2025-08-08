@@ -1,17 +1,19 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { CalendarDays, Plus, ArrowUp, ArrowDown, ChevronDown, ChevronRight, FolderPlus, GripVertical, Tag } from 'lucide-react';
+import { CalendarDays, Plus, ArrowUp, ArrowDown, ChevronDown, ChevronRight, FolderPlus, GripVertical, Tag, Copy } from 'lucide-react';
 import { Meeting } from '../types';
 import { DragDropContext, Droppable, Draggable, DropResult, DraggableProvided, DraggableStateSnapshot, DroppableProvided } from 'react-beautiful-dnd';
 import { get, set } from 'idb-keyval';
 
 interface MeetingListProps {
-  meetings: Meeting[];
+  meetings: (Meeting & { isVirtual?: boolean; virtualId?: string; originalMeetingId?: string })[];
   selectedMeeting: Meeting | null;
-  onSelectMeeting: (meeting: Meeting) => void;
+  onSelectMeeting: (meeting: Meeting & { isVirtual?: boolean; virtualId?: string; originalMeetingId?: string }) => void;
   onNewMeeting: () => void;
   onReorderMeeting?: (meetingId: string, direction: 'up' | 'down') => void;
   onUpdateMeeting: (meeting: Meeting) => void;
   onReorderMeetings?: (newOrder: Meeting[]) => void;
+  createVirtualDuplicate?: (meeting: Meeting) => void;
+  removeVirtualDuplicate?: (duplicateId: string) => void;
 }
 
 export function MeetingList({
@@ -22,6 +24,8 @@ export function MeetingList({
   onReorderMeeting,
   onUpdateMeeting,
   onReorderMeetings,
+  createVirtualDuplicate,
+  removeVirtualDuplicate,
 }: MeetingListProps) {
   const EXPANDED_KEY = 'expandedMeetingGroups';
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(() => {
@@ -80,7 +84,7 @@ export function MeetingList({
     }
     acc[group].push(meeting);
     return acc;
-  }, {} as Record<string, Meeting[]>);
+  }, {} as Record<string, (Meeting & { isVirtual?: boolean; virtualId?: string; originalMeetingId?: string })[]>);
 
   // Move group up or down
   const moveGroup = (group: string, direction: 'up' | 'down') => {
@@ -249,7 +253,7 @@ export function MeetingList({
   }, [editingMeetingId]);
 
   return (
-    <div className="w-64 h-screen bg-gray-50 border-r border-gray-200 flex flex-col overflow-y-auto">
+    <div className="w-72 h-screen bg-gray-50 border-r border-gray-200 flex flex-col overflow-y-auto overflow-x-visible">
       <div className="flex items-center justify-between p-2 border-b border-gray-200">
         <h2 className="text-sm font-semibold text-gray-700">Meetings</h2>
         <div className="flex gap-1">
@@ -344,7 +348,7 @@ export function MeetingList({
                   <Droppable key={group || 'ungrouped'} droppableId={group || 'ungrouped'}>
                     {(provided: DroppableProvided) => (
                       <div ref={provided.innerRef} {...provided.droppableProps}>
-                        {(groupedMeetings[group] || []).map((meeting, index) => (
+                        {(groupedMeetings[group] || []).map((meeting: Meeting & { isVirtual?: boolean; virtualId?: string; originalMeetingId?: string }, index) => (
                           <Draggable key={meeting.id} draggableId={meeting.id} index={index}>
                             {(provided: DraggableProvided, snapshot: DraggableStateSnapshot) => (
                               <div
@@ -358,11 +362,11 @@ export function MeetingList({
                                       : 'hover:bg-gray-100 border-b border-gray-100'
                                 } ${snapshot.isDragging ? 'bg-yellow-50' : ''}`}
                               >
-                                <span {...provided.dragHandleProps} className="pr-1 cursor-grab text-gray-400 hover:text-gray-600">
+                                <span {...provided.dragHandleProps} className="cursor-grab text-gray-400 hover:text-gray-600 flex-shrink-0">
                                   <GripVertical size={meeting.isDivider ? 12 : 16} />
                                 </span>
                                 <div
-                                  className="text-sm text-gray-800 flex-1 truncate cursor-pointer"
+                                  className="text-sm text-gray-800 flex-1 cursor-pointer flex items-center gap-2"
                                   style={meeting.isDivider ? { fontSize: '10px' } : {}}
                                   onDoubleClick={() => {
                                     setEditingMeetingId(meeting.id);
@@ -370,14 +374,28 @@ export function MeetingList({
                                   }}
                                   onClick={() => !meeting.isDivider && onSelectMeeting(meeting)}
                                 >
-                                  {editingMeetingId === meeting.id ? (
-                                    <input
-                                      ref={inputRef}
-                                      type="text"
-                                      value={editingTitle}
-                                      onChange={e => setEditingTitle(e.target.value)}
-                                      onKeyDown={e => {
-                                        if (e.key === 'Enter') {
+                                  <span className="truncate">
+                                    {editingMeetingId === meeting.id ? (
+                                      <input
+                                        ref={inputRef}
+                                        type="text"
+                                        value={editingTitle}
+                                        onChange={e => setEditingTitle(e.target.value)}
+                                        onKeyDown={e => {
+                                          if (e.key === 'Enter') {
+                                            if (editingTitle.trim() && editingTitle !== meeting.title) {
+                                              onUpdateMeeting({ ...meeting, title: editingTitle.trim() });
+                                            }
+                                            setEditingMeetingId(null);
+                                            const editorElement = document.querySelector('.ProseMirror');
+                                            if (editorElement) {
+                                              (editorElement as HTMLElement).focus();
+                                            }
+                                          } else if (e.key === 'Escape') {
+                                            setEditingMeetingId(null);
+                                          }
+                                        }}
+                                        onBlur={() => {
                                           if (editingTitle.trim() && editingTitle !== meeting.title) {
                                             onUpdateMeeting({ ...meeting, title: editingTitle.trim() });
                                           }
@@ -386,41 +404,56 @@ export function MeetingList({
                                           if (editorElement) {
                                             (editorElement as HTMLElement).focus();
                                           }
-                                        } else if (e.key === 'Escape') {
-                                          setEditingMeetingId(null);
+                                        }}
+                                        className="px-1 py-0.5 border border-blue-300 rounded text-sm min-w-0"
+                                        onClick={e => e.stopPropagation()}
+                                      />
+                                    ) : (
+                                      meeting.title
+                                    )}
+                                  </span>
+                                  
+                                  {/* Action buttons inline with title */}
+                                  {meeting.isDivider && (
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        const newMeetings = meetings.filter(m => m.id !== meeting.id);
+                                        if (onReorderMeetings) {
+                                          onReorderMeetings(newMeetings);
                                         }
                                       }}
-                                      onBlur={() => {
-                                        if (editingTitle.trim() && editingTitle !== meeting.title) {
-                                          onUpdateMeeting({ ...meeting, title: editingTitle.trim() });
-                                        }
-                                        setEditingMeetingId(null);
-                                        const editorElement = document.querySelector('.ProseMirror');
-                                        if (editorElement) {
-                                          (editorElement as HTMLElement).focus();
-                                        }
+                                      className="text-gray-400 hover:text-red-500 w-4 h-4 flex items-center justify-center flex-shrink-0"
+                                      title="Remove divider"
+                                    >
+                                      ×
+                                    </button>
+                                  )}
+                                  {!meeting.isDivider && meeting.isVirtual && removeVirtualDuplicate && (
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        removeVirtualDuplicate(meeting.virtualId!);
                                       }}
-                                      className="w-full px-1 py-0.5 border border-blue-300 rounded text-sm"
-                                      onClick={e => e.stopPropagation()}
-                                    />
-                                  ) : (
-                                    meeting.title
+                                      className="text-gray-400 hover:text-red-500 w-4 h-4 flex items-center justify-center flex-shrink-0"
+                                      title="Remove virtual duplicate"
+                                    >
+                                      ×
+                                    </button>
+                                  )}
+                                  {!meeting.isDivider && !meeting.isVirtual && createVirtualDuplicate && (
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        createVirtualDuplicate(meeting);
+                                      }}
+                                      className="text-gray-400 hover:text-blue-500 w-4 h-4 flex items-center justify-center flex-shrink-0"
+                                      title="Create virtual duplicate"
+                                    >
+                                      <Copy className="w-3 h-3" />
+                                    </button>
                                   )}
                                 </div>
-                                {meeting.isDivider && (
-                                  <button
-                                    onClick={() => {
-                                      const newMeetings = meetings.filter(m => m.id !== meeting.id);
-                                      if (onReorderMeetings) {
-                                        onReorderMeetings(newMeetings);
-                                      }
-                                    }}
-                                    className="text-gray-400 hover:text-red-500"
-                                    title="Remove divider"
-                                  >
-                                    ×
-                                  </button>
-                                )}
                               </div>
                             )}
                           </Draggable>
