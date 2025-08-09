@@ -4,7 +4,7 @@ import { ActionItems } from './ActionItems';
 import { Reminders, RemindersHandle } from './Reminders';
 import { SummaryDialog } from './SummaryDialog';
 import { getReminders, Reminder, getMeetings, optimizeDatabase } from '../services/storage';
-import { ChevronDown, ChevronRight, RefreshCw, BarChart3 } from 'lucide-react';
+import { ChevronDown, ChevronRight, RefreshCw, BarChart3, Archive, ArchiveRestore } from 'lucide-react';
 
 interface RightNavProps {
   actionItems: ActionItem[];
@@ -12,9 +12,12 @@ interface RightNavProps {
   onExport: () => Promise<void>;
   onImport: (event: React.ChangeEvent<HTMLInputElement>) => Promise<void>;
   selectedMeeting: {
+    id: string;
     title: string;
     content: string;
+    isArchived?: boolean;
   } | null;
+  onArchiveMeeting?: (meetingId: string, isArchived: boolean) => void;
   lastSaveTime?: number;
 }
 
@@ -31,6 +34,7 @@ export const RightNav: React.FC<RightNavProps> = ({
   onExport,
   onImport,
   selectedMeeting,
+  onArchiveMeeting,
   lastSaveTime,
 }) => {
   const REMINDERS_KEY = 'reminders';
@@ -380,6 +384,30 @@ export const RightNav: React.FC<RightNavProps> = ({
           <BarChart3 className="w-5 h-5 mr-2" />
           Summarize
         </button>
+        
+        {/* Archive/Unarchive button */}
+        {selectedMeeting && onArchiveMeeting && (
+          <button
+            onClick={() => onArchiveMeeting(selectedMeeting.id, !selectedMeeting.isArchived)}
+            className={`w-full px-4 py-2 rounded-lg shadow-lg transition-colors flex items-center justify-center ${
+              selectedMeeting.isArchived
+                ? 'bg-green-500 text-white hover:bg-green-600'
+                : 'bg-orange-500 text-white hover:bg-orange-600'
+            }`}
+          >
+            {selectedMeeting.isArchived ? (
+              <>
+                <ArchiveRestore className="w-5 h-5 mr-2" />
+                Unarchive Meeting
+              </>
+            ) : (
+              <>
+                <Archive className="w-5 h-5 mr-2" />
+                Archive Meeting
+              </>
+            )}
+          </button>
+        )}
         
         {/* Import/Export buttons - side by side */}
         <div className="flex space-x-2">

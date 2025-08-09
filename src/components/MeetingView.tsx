@@ -19,6 +19,7 @@ interface MeetingViewProps {
   onToggleActionItem: (id: string) => void;
   onExport: () => void;
   onImport: (event: React.ChangeEvent<HTMLInputElement>) => void;
+  onArchiveMeeting?: (meetingId: string, isArchived: boolean) => void;
   processCompletedItems: (content: string) => string;
   createVirtualDuplicate: (meeting: Meeting) => void;
   removeVirtualDuplicate: (duplicateId: string) => void;
@@ -38,6 +39,7 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
   onToggleActionItem,
   onExport,
   onImport,
+  onArchiveMeeting,
   processCompletedItems,
   createVirtualDuplicate,
   removeVirtualDuplicate,
@@ -158,6 +160,7 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
             onExport={onExport}
             onImport={onImport}
             selectedMeeting={selectedMeeting}
+            onArchiveMeeting={onArchiveMeeting}
           />
         </div>
       )}

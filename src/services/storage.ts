@@ -18,6 +18,7 @@ export interface Meeting {
   group?: string;
   isDivider?: boolean;
   subDivider?: string;
+  isArchived?: boolean;
   createdAt: number;
   updatedAt: number;
 }

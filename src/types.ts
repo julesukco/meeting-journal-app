@@ -9,6 +9,7 @@ export interface Meeting {
   isDivider?: boolean; // Whether this meeting is a divider
   subDivider?: string; // Optional sub-divider name for organizing meetings within groups
   sortOrder?: number; // Explicit sort order for positioning
+  isArchived?: boolean; // Whether this meeting is archived
   createdAt: number;
   updatedAt: number;
 }

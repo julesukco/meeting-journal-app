@@ -449,6 +449,34 @@ function App() {
     }
   };
 
+  const handleArchiveMeeting = async (meetingId: string, isArchived: boolean) => {
+    try {
+      // Update the meeting in the state
+      setMeetings(prev => prev.map(meeting => 
+        meeting.id === meetingId 
+          ? { ...meeting, isArchived, updatedAt: Date.now() }
+          : meeting
+      ));
+
+      // Update the selected meeting if it's the one being archived
+      if (selectedMeeting?.id === meetingId) {
+        setSelectedMeeting(prev => prev ? { ...prev, isArchived, updatedAt: Date.now() } : null);
+      }
+
+      // Save to IndexedDB
+      const updatedMeetings = await getMeetings();
+      const newMeetings = updatedMeetings.map(meeting => 
+        meeting.id === meetingId 
+          ? { ...meeting, isArchived, updatedAt: Date.now() }
+          : meeting
+      );
+      await saveMeetings(newMeetings);
+    } catch (error) {
+      console.error('Error archiving meeting:', error);
+      alert('Failed to archive meeting');
+    }
+  };
+
   return (
     <Router>
       <Routes>
@@ -468,6 +496,7 @@ function App() {
               onToggleActionItem={toggleActionItem}
               onExport={handleExport}
               onImport={handleImport}
+              onArchiveMeeting={handleArchiveMeeting}
               processCompletedItems={processCompletedItems}
               createVirtualDuplicate={createVirtualDuplicate}
               removeVirtualDuplicate={removeVirtualDuplicate}
