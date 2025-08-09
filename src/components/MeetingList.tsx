@@ -49,6 +49,8 @@ export function MeetingList({
     localStorage.setItem(EXPANDED_KEY, JSON.stringify(Array.from(expandedGroups)));
   }, [expandedGroups]);
 
+  const [hoveredMeetingId, setHoveredMeetingId] = useState<string | null>(null);
+
   const [newGroupName, setNewGroupName] = useState('');
   const [showNewGroupInput, setShowNewGroupInput] = useState(false);
   const GROUPS_KEY = 'meetingGroups';
@@ -353,6 +355,8 @@ export function MeetingList({
                                       ? 'bg-blue-50'
                                       : 'hover:bg-gray-100 border-b border-gray-100'
                                 } ${snapshot.isDragging ? 'bg-yellow-50' : ''}`}
+                                onMouseEnter={() => setHoveredMeetingId(meeting.id)}
+                                onMouseLeave={() => setHoveredMeetingId(null)}
                               >
                                 <span {...provided.dragHandleProps} className="cursor-grab text-gray-400 hover:text-gray-600 flex-shrink-0">
                                   <GripVertical size={meeting.isDivider ? 12 : 16} />
@@ -406,7 +410,7 @@ export function MeetingList({
                                   </span>
                                   
                                   {/* Action buttons inline with title */}
-                                  {meeting.isDivider && (
+                                  {meeting.isDivider && hoveredMeetingId === meeting.id && (
                                     <button
                                       onClick={(e) => {
                                         e.stopPropagation();
@@ -421,7 +425,7 @@ export function MeetingList({
                                       ×
                                     </button>
                                   )}
-                                  {!meeting.isDivider && meeting.isVirtual && removeVirtualDuplicate && (
+                                  {!meeting.isDivider && meeting.isVirtual && removeVirtualDuplicate && hoveredMeetingId === meeting.id && (
                                     <button
                                       onClick={(e) => {
                                         e.stopPropagation();
@@ -433,7 +437,7 @@ export function MeetingList({
                                       ×
                                     </button>
                                   )}
-                                  {!meeting.isDivider && !meeting.isVirtual && createVirtualDuplicate && (
+                                  {!meeting.isDivider && !meeting.isVirtual && createVirtualDuplicate && hoveredMeetingId === meeting.id && (
                                     <button
                                       onClick={(e) => {
                                         e.stopPropagation();
