@@ -50,6 +50,7 @@ export function MeetingList({
   }, [expandedGroups]);
 
   const [hoveredMeetingId, setHoveredMeetingId] = useState<string | null>(null);
+  const [hoveredGroupName, setHoveredGroupName] = useState<string | null>(null);
 
   const [newGroupName, setNewGroupName] = useState('');
   const [showNewGroupInput, setShowNewGroupInput] = useState(false);
@@ -311,6 +312,8 @@ export function MeetingList({
                 <div
                   className="flex items-center px-3 py-2 bg-blue-100 border-l-4 border-blue-500 cursor-pointer hover:bg-blue-200 shadow-sm mb-1"
                   onClick={() => toggleGroup(group)}
+                  onMouseEnter={() => setHoveredGroupName(group)}
+                  onMouseLeave={() => setHoveredGroupName(null)}
                 >
                   {expandedGroups.has(group) ? (
                     <ChevronDown className="w-4 h-4 text-blue-700" />
@@ -319,22 +322,26 @@ export function MeetingList({
                   )}
                   <span className="ml-2 text-base font-bold text-blue-800 tracking-wide uppercase flex-1">{group}</span>
                   {/* Group move up/down buttons */}
-                  <button
-                    onClick={e => { e.stopPropagation(); moveGroup(group, 'up'); }}
-                    disabled={groups.indexOf(group) === 0}
-                    className={`p-1 rounded ${groups.indexOf(group) === 0 ? 'text-gray-300 cursor-not-allowed' : 'text-blue-700 hover:bg-blue-200'}`}
-                    title="Move group up"
-                  >
-                    <ArrowUp className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={e => { e.stopPropagation(); moveGroup(group, 'down'); }}
-                    disabled={groups.indexOf(group) === groups.length - 1}
-                    className={`p-1 rounded ${groups.indexOf(group) === groups.length - 1 ? 'text-gray-300 cursor-not-allowed' : 'text-blue-700 hover:bg-blue-200'}`}
-                    title="Move group down"
-                  >
-                    <ArrowDown className="w-4 h-4" />
-                  </button>
+                  {hoveredGroupName === group && (
+                    <>
+                      <button
+                        onClick={e => { e.stopPropagation(); moveGroup(group, 'up'); }}
+                        disabled={groups.indexOf(group) === 0}
+                        className={`p-1 rounded ${groups.indexOf(group) === 0 ? 'text-gray-300 cursor-not-allowed' : 'text-blue-700 hover:bg-blue-200'}`}
+                        title="Move group up"
+                      >
+                        <ArrowUp className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={e => { e.stopPropagation(); moveGroup(group, 'down'); }}
+                        disabled={groups.indexOf(group) === groups.length - 1}
+                        className={`p-1 rounded ${groups.indexOf(group) === groups.length - 1 ? 'text-gray-300 cursor-not-allowed' : 'text-blue-700 hover:bg-blue-200'}`}
+                        title="Move group down"
+                      >
+                        <ArrowDown className="w-4 h-4" />
+                      </button>
+                    </>
+                  )}
                 </div>
               )}
               {expandedGroups.has(group) && (
