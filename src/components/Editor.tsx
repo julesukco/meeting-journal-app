@@ -325,7 +325,6 @@ const Editor: React.FC<EditorProps> = ({
   // Add keyboard shortcut for task list and font size
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      console.log('KeyDown event:', e);
       // Table hotkeys
       if (e.metaKey && e.ctrlKey && e.key.toLowerCase() === 't') {
         e.preventDefault();
