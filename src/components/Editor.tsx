@@ -418,9 +418,13 @@ const Editor: React.FC<EditorProps> = ({
 
   // Add image resize handlers
   useEffect(() => {
+    let isResizing = false;
+    let resizeTimeout: ReturnType<typeof setTimeout> | null = null;
+
     const handleImageResize = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
-      if (target.tagName === 'IMG') {
+      if (target.tagName === 'IMG' && !isResizing) {
+        isResizing = true;
         const img = target as HTMLImageElement;
         const startX = e.clientX;
         const startY = e.clientY;
@@ -429,26 +433,36 @@ const Editor: React.FC<EditorProps> = ({
         const aspectRatio = startWidth / startHeight;
 
         const handleMouseMove = (e: MouseEvent) => {
-          const deltaX = e.clientX - startX;
-          const deltaY = e.clientY - startY;
-          const newWidth = Math.max(50, startWidth + deltaX);
-          const newHeight = newWidth / aspectRatio;
+          // Use requestAnimationFrame for smooth performance
+          requestAnimationFrame(() => {
+            const deltaX = e.clientX - startX;
+            const deltaY = e.clientY - startY;
+            const newWidth = Math.max(50, startWidth + deltaX);
+            const newHeight = newWidth / aspectRatio;
 
-          img.style.width = `${newWidth}px`;
-          img.style.height = `${newHeight}px`;
+            img.style.width = `${newWidth}px`;
+            img.style.height = `${newHeight}px`;
+          });
         };
 
         const handleMouseUp = () => {
+          isResizing = false;
           document.removeEventListener('mousemove', handleMouseMove);
           document.removeEventListener('mouseup', handleMouseUp);
           
-          // Update the image attributes in the editor
-          if (editor) {
-            editor.chain().focus().updateAttributes('image', {
-              width: img.offsetWidth,
-              height: img.offsetHeight,
-            }).run();
+          // Debounce the editor update to prevent performance violations
+          if (resizeTimeout) {
+            clearTimeout(resizeTimeout);
           }
+          resizeTimeout = setTimeout(() => {
+            // Update the image attributes in the editor
+            if (editor) {
+              editor.chain().focus().updateAttributes('image', {
+                width: img.offsetWidth,
+                height: img.offsetHeight,
+              }).run();
+            }
+          }, 100);
         };
 
         document.addEventListener('mousemove', handleMouseMove);
@@ -457,7 +471,12 @@ const Editor: React.FC<EditorProps> = ({
     };
 
     document.addEventListener('mousedown', handleImageResize);
-    return () => document.removeEventListener('mousedown', handleImageResize);
+    return () => {
+      document.removeEventListener('mousedown', handleImageResize);
+      if (resizeTimeout) {
+        clearTimeout(resizeTimeout);
+      }
+    };
   }, [editor]);
 
   // Toolbar button helper

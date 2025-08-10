@@ -9,6 +9,7 @@ import { RightNav } from './components/RightNav';
 import { SearchDialog } from './components/SearchDialog';
 import { MeetingListScreen } from './screens/MeetingListScreen';
 import { MeetingView } from './components/MeetingView';
+import { PerformanceMonitor } from './components/PerformanceMonitor';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { get, set } from 'idb-keyval';
 
@@ -22,6 +23,7 @@ function App() {
   const [recentMeetings, setRecentMeetings] = useState<any[]>([]); // Replace any[] with correct type if available
   const pendingMeetingUpdateRef = React.useRef<Meeting | null>(null);
   const saveTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const actionItemTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   
   // Load data from IndexedDB on component mount
   useEffect(() => {
@@ -69,10 +71,13 @@ function App() {
         try {
           const startTime = performance.now();
           
-          // Update the meetings state with the pending update
-          setMeetings((prev) =>
-            prev.map((m) => (m.id === pendingMeetingUpdateRef.current!.id ? pendingMeetingUpdateRef.current! : m))
-          );
+          // Use requestAnimationFrame to prevent forced reflows
+          requestAnimationFrame(() => {
+            // Update the meetings state with the pending update
+            setMeetings((prev) =>
+              prev.map((m) => (m.id === pendingMeetingUpdateRef.current!.id ? pendingMeetingUpdateRef.current! : m))
+            );
+          });
           
           // Save to IndexedDB
           const currentMeetings = await getMeetings();
@@ -83,7 +88,11 @@ function App() {
           
           const endTime = performance.now();
           const saveTime = endTime - startTime;
-          setLastSaveTime(saveTime);
+          
+          // Use requestAnimationFrame for state update to prevent reflow
+          requestAnimationFrame(() => {
+            setLastSaveTime(saveTime);
+          });
           
           // Log performance metrics
           console.log(`Save completed in ${saveTime.toFixed(2)}ms`);
@@ -219,6 +228,9 @@ function App() {
       if (saveTimeoutRef.current) {
         clearTimeout(saveTimeoutRef.current);
       }
+      if (actionItemTimeoutRef.current) {
+        clearTimeout(actionItemTimeoutRef.current);
+      }
     };
   }, []);
 
@@ -303,47 +315,57 @@ function App() {
     // Use debounced save for the meeting content
     debouncedSave(updatedMeeting);
 
-    // Extract action items from HTML content (debounced to avoid performance issues)
-    const content = updatedMeeting.content;
-    // This regex looks for "AI:" followed by text, even within HTML tags
-    const aiRegex = /AI:\s*([^<]+)/g;
-    const matches = Array.from(content.matchAll(aiRegex));
+    // Debounce action item processing to prevent performance violations
+    if (actionItemTimeoutRef.current) {
+      clearTimeout(actionItemTimeoutRef.current);
+    }
+    
+    actionItemTimeoutRef.current = setTimeout(() => {
+      // Extract action items from HTML content
+      const content = updatedMeeting.content;
+      // This regex looks for "AI:" followed by text, even within HTML tags
+      const aiRegex = /AI:\s*([^<]+)/g;
+      const matches = Array.from(content.matchAll(aiRegex));
 
-    // Create new action items while preserving completed state
-    setActionItems((prev) => {
-      // Get existing items for other meetings
-      const otherMeetingsItems = prev.filter((ai) => ai.meetingId !== updatedMeeting.id);
-      
-      // Create a map of existing items for the current meeting
-      const existingItemsMap = prev
-        .filter((ai) => ai.meetingId === updatedMeeting.id)
-        .reduce((map, item) => {
-          map[item.text.trim()] = item;
-          return map;
-        }, {} as Record<string, typeof prev[0]>);
+      // Use requestAnimationFrame to prevent forced reflows during state updates
+      requestAnimationFrame(() => {
+        // Create new action items while preserving completed state
+        setActionItems((prev) => {
+          // Get existing items for other meetings
+          const otherMeetingsItems = prev.filter((ai) => ai.meetingId !== updatedMeeting.id);
+          
+          // Create a map of existing items for the current meeting
+          const existingItemsMap = prev
+            .filter((ai) => ai.meetingId === updatedMeeting.id)
+            .reduce((map, item) => {
+              map[item.text.trim()] = item;
+              return map;
+            }, {} as Record<string, typeof prev[0]>);
 
-      // Create or update action items
-      const currentMeetingItems = matches.map((match) => {
-        const text = match[1].trim();
-        const existingItem = existingItemsMap[text];
-        
-        if (existingItem) {
-          // Preserve the existing item with its completed state
-          return existingItem;
-        }
+          // Create or update action items
+          const currentMeetingItems = matches.map((match) => {
+            const text = match[1].trim();
+            const existingItem = existingItemsMap[text];
+            
+            if (existingItem) {
+              // Preserve the existing item with its completed state
+              return existingItem;
+            }
 
-        // Create new item if it doesn't exist
-        return {
-          id: `${updatedMeeting.id}-${Date.now()}-${match.index}`,
-          text: text,
-          completed: false,
-          meetingId: updatedMeeting.id,
-          createdAt: new Date().toISOString(),
-        };
+            // Create new item if it doesn't exist
+            return {
+              id: `${updatedMeeting.id}-${Date.now()}-${match.index}`,
+              text: text,
+              completed: false,
+              meetingId: updatedMeeting.id,
+              createdAt: new Date().toISOString(),
+            };
+          });
+
+          return [...otherMeetingsItems, ...currentMeetingItems];
+        });
       });
-
-      return [...otherMeetingsItems, ...currentMeetingItems];
-    });
+    }, 300); // 300ms debounce for action item processing
   }, [debouncedSave]);
 
   const toggleActionItem = useCallback((id: string) => {
@@ -514,6 +536,7 @@ function App() {
           onClose={() => setShowSearch(false)}
         />
       )}
+      <PerformanceMonitor lastSaveTime={lastSaveTime} />
     </Router>
   );
 }

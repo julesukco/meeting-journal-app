@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { CalendarDays, Plus, ArrowUp, ArrowDown, ChevronDown, ChevronRight, FolderPlus, GripVertical, Tag, Copy } from 'lucide-react';
 import { Meeting } from '../types';
 import { DragDropContext, Droppable, Draggable, DropResult, DraggableProvided, DraggableStateSnapshot, DroppableProvided } from 'react-beautiful-dnd';
@@ -52,6 +52,36 @@ export function MeetingList({
   const [hoveredMeetingId, setHoveredMeetingId] = useState<string | null>(null);
   const [hoveredGroupName, setHoveredGroupName] = useState<string | null>(null);
 
+  // Debounce mouse events to prevent performance violations
+  const mouseTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  
+  const debouncedSetHoveredMeetingId = useCallback((id: string | null) => {
+    if (mouseTimeoutRef.current) {
+      clearTimeout(mouseTimeoutRef.current);
+    }
+    mouseTimeoutRef.current = setTimeout(() => {
+      setHoveredMeetingId(id);
+    }, 16); // ~60fps
+  }, []);
+
+  const debouncedSetHoveredGroupName = useCallback((name: string | null) => {
+    if (mouseTimeoutRef.current) {
+      clearTimeout(mouseTimeoutRef.current);
+    }
+    mouseTimeoutRef.current = setTimeout(() => {
+      setHoveredGroupName(name);
+    }, 16); // ~60fps
+  }, []);
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (mouseTimeoutRef.current) {
+        clearTimeout(mouseTimeoutRef.current);
+      }
+    };
+  }, []);
+
   const [newGroupName, setNewGroupName] = useState('');
   const [showNewGroupInput, setShowNewGroupInput] = useState(false);
   const GROUPS_KEY = 'meetingGroups';
@@ -83,42 +113,52 @@ export function MeetingList({
     setGroups(prev => Array.from(new Set([...prev, ...meetingGroups])));
   }, [meetings]);
 
-  // Separate archived and non-archived meetings
-  const activeMeetings = meetings.filter(meeting => !meeting.isArchived);
-  const archivedMeetings = meetings.filter(meeting => meeting.isArchived);
+  // Memoize expensive operations
+  const { activeMeetings, archivedMeetings, groupedMeetings, groupedArchivedMeetings } = useMemo(() => {
+    // Separate archived and non-archived meetings
+    const activeMeetings = meetings.filter(meeting => !meeting.isArchived);
+    const archivedMeetings = meetings.filter(meeting => meeting.isArchived);
 
-  // Group meetings by their group and sort within each group
-  const groupedMeetings = activeMeetings.reduce((acc, meeting) => {
-    const group = meeting.group || '';
-    if (!acc[group]) {
-      acc[group] = [];
-    }
-    acc[group].push(meeting);
-    return acc;
-  }, {} as Record<string, (Meeting & { isVirtual?: boolean; virtualId?: string; originalMeetingId?: string })[]>);
+    // Group meetings by their group and sort within each group
+    const groupedMeetings = activeMeetings.reduce((acc, meeting) => {
+      const group = meeting.group || '';
+      if (!acc[group]) {
+        acc[group] = [];
+      }
+      acc[group].push(meeting);
+      return acc;
+    }, {} as Record<string, (Meeting & { isVirtual?: boolean; virtualId?: string; originalMeetingId?: string })[]>);
 
-  // Group archived meetings
-  const groupedArchivedMeetings = archivedMeetings.reduce((acc, meeting) => {
-    const group = meeting.group || '';
-    if (!acc[group]) {
-      acc[group] = [];
-    }
-    acc[group].push(meeting);
-    return acc;
-  }, {} as Record<string, (Meeting & { isVirtual?: boolean; virtualId?: string; originalMeetingId?: string })[]>);
+    // Group archived meetings
+    const groupedArchivedMeetings = archivedMeetings.reduce((acc, meeting) => {
+      const group = meeting.group || '';
+      if (!acc[group]) {
+        acc[group] = [];
+      }
+      acc[group].push(meeting);
+      return acc;
+    }, {} as Record<string, (Meeting & { isVirtual?: boolean; virtualId?: string; originalMeetingId?: string })[]>);
 
-  // Sort meetings within each group by sortOrder
-  Object.keys(groupedMeetings).forEach(group => {
-    groupedMeetings[group].sort((a, b) => (a.sortOrder || a.createdAt) - (b.sortOrder || b.createdAt));
-  });
+    // Sort meetings within each group by sortOrder
+    Object.keys(groupedMeetings).forEach(group => {
+      groupedMeetings[group].sort((a, b) => (a.sortOrder || a.createdAt) - (b.sortOrder || b.createdAt));
+    });
 
-  // Sort archived meetings within each group by sortOrder
-  Object.keys(groupedArchivedMeetings).forEach(group => {
-    groupedArchivedMeetings[group].sort((a, b) => (a.sortOrder || a.createdAt) - (b.sortOrder || b.createdAt));
-  });
+    // Sort archived meetings within each group by sortOrder
+    Object.keys(groupedArchivedMeetings).forEach(group => {
+      groupedArchivedMeetings[group].sort((a, b) => (a.sortOrder || a.createdAt) - (b.sortOrder || b.createdAt));
+    });
+
+    return { activeMeetings, archivedMeetings, groupedMeetings, groupedArchivedMeetings };
+  }, [meetings]);
+
+  // Memoize sorted groups
+  const sortedGroups = useMemo(() => {
+    return [''].concat(groups);
+  }, [groups]);
 
   // Move group up or down
-  const moveGroup = (group: string, direction: 'up' | 'down') => {
+  const moveGroup = useCallback((group: string, direction: 'up' | 'down') => {
     const idx = groups.indexOf(group);
     if (idx === -1) return;
     let newGroups = [...groups];
@@ -128,9 +168,9 @@ export function MeetingList({
       [newGroups[idx], newGroups[idx + 1]] = [newGroups[idx + 1], newGroups[idx]];
     }
     setGroups(newGroups);
-  };
+  }, [groups]);
 
-  const toggleGroup = (group: string) => {
+  const toggleGroup = useCallback((group: string) => {
     setExpandedGroups(prev => {
       const next = new Set(prev);
       if (next.has(group)) {
@@ -140,19 +180,19 @@ export function MeetingList({
       }
       return next;
     });
-  };
+  }, []);
 
-  const handleNewGroup = () => {
+  const handleNewGroup = useCallback(() => {
     if (newGroupName.trim() && !groups.includes(newGroupName.trim())) {
       setGroups(prev => [...prev, newGroupName.trim()]);
       setExpandedGroups(prev => new Set([...prev, newGroupName.trim()]));
     }
     setNewGroupName('');
     setShowNewGroupInput(false);
-  };
+  }, [newGroupName, groups]);
 
   // Handle adding a new divider
-  const handleNewDivider = () => {
+  const handleNewDivider = useCallback(() => {
     const now = Date.now();
     const newDivider: Meeting = {
       id: `divider-${now}`,
@@ -171,10 +211,10 @@ export function MeetingList({
       const newMeetings = [...meetings, newDivider];
       onReorderMeetings(newMeetings);
     }
-  };
+  }, [meetings, onReorderMeetings]);
 
   // Handle drag end for meetings
-  const onDragEnd = (result: DropResult) => {
+  const onDragEnd = useCallback((result: DropResult) => {
     const { source, destination, draggableId } = result;
     if (!destination || !handleItemReorder) return;
     
@@ -250,11 +290,7 @@ export function MeetingList({
     const newGroup = destGroup === 'ungrouped' ? '' : destGroup;
     
     handleItemReorder(draggableId, newGroup, newSortOrder);
-  };
-
-  // Render ungrouped first, then groups in the order of the groups array
-  const allGroups = [''].concat(groups);
-  const sortedGroups = allGroups;
+  }, [groupedMeetings, handleItemReorder]);
 
   const [editingMeetingId, setEditingMeetingId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState('');
@@ -265,6 +301,25 @@ export function MeetingList({
       inputRef.current.focus();
     }
   }, [editingMeetingId]);
+
+  // Memoize the meeting selection handler to prevent unnecessary re-renders
+  const handleMeetingSelect = useCallback((meeting: Meeting & { isVirtual?: boolean; virtualId?: string; originalMeetingId?: string }) => {
+    if (!meeting.isDivider) {
+      onSelectMeeting(meeting);
+    }
+  }, [onSelectMeeting]);
+
+  // Memoize the meeting update handler
+  const handleMeetingUpdate = useCallback((meeting: Meeting & { isVirtual?: boolean; virtualId?: string; originalMeetingId?: string }, newTitle: string) => {
+    if (newTitle.trim() && newTitle !== meeting.title) {
+      onUpdateMeeting({ ...meeting, title: newTitle.trim() });
+    }
+    setEditingMeetingId(null);
+    const editorElement = document.querySelector('.ProseMirror');
+    if (editorElement) {
+      (editorElement as HTMLElement).focus();
+    }
+  }, [onUpdateMeeting]);
 
   return (
     <div className="w-72 h-screen bg-gray-50 border-r border-gray-200 flex flex-col overflow-y-auto overflow-x-visible">
@@ -331,8 +386,8 @@ export function MeetingList({
                 <div
                   className="flex items-center px-3 py-2 bg-blue-100 border-l-4 border-blue-500 cursor-pointer hover:bg-blue-200 shadow-sm mb-1"
                   onClick={() => toggleGroup(group)}
-                  onMouseEnter={() => setHoveredGroupName(group)}
-                  onMouseLeave={() => setHoveredGroupName(null)}
+                  onMouseEnter={() => debouncedSetHoveredGroupName(group)}
+                  onMouseLeave={() => debouncedSetHoveredGroupName(null)}
                 >
                   {expandedGroups.has(group) ? (
                     <ChevronDown className="w-4 h-4 text-blue-700" />
@@ -381,8 +436,8 @@ export function MeetingList({
                                       ? 'bg-blue-50'
                                       : 'hover:bg-gray-100 border-b border-gray-100'
                                 } ${snapshot.isDragging ? 'bg-yellow-50' : ''}`}
-                                onMouseEnter={() => setHoveredMeetingId(meeting.id)}
-                                onMouseLeave={() => setHoveredMeetingId(null)}
+                                onMouseEnter={() => debouncedSetHoveredMeetingId(meeting.id)}
+                                onMouseLeave={() => debouncedSetHoveredMeetingId(null)}
                               >
                                 <span {...provided.dragHandleProps} className="cursor-grab text-gray-400 hover:text-gray-600 flex-shrink-0">
                                   <GripVertical size={meeting.isDivider ? 12 : 16} />
@@ -394,7 +449,7 @@ export function MeetingList({
                                     setEditingMeetingId(meeting.id);
                                     setEditingTitle(meeting.title);
                                   }}
-                                  onClick={() => !meeting.isDivider && onSelectMeeting(meeting)}
+                                  onClick={() => handleMeetingSelect(meeting)}
                                 >
                                   <span className="truncate">
                                     {editingMeetingId === meeting.id ? (
@@ -405,28 +460,12 @@ export function MeetingList({
                                         onChange={e => setEditingTitle(e.target.value)}
                                         onKeyDown={e => {
                                           if (e.key === 'Enter') {
-                                            if (editingTitle.trim() && editingTitle !== meeting.title) {
-                                              onUpdateMeeting({ ...meeting, title: editingTitle.trim() });
-                                            }
-                                            setEditingMeetingId(null);
-                                            const editorElement = document.querySelector('.ProseMirror');
-                                            if (editorElement) {
-                                              (editorElement as HTMLElement).focus();
-                                            }
+                                            handleMeetingUpdate(meeting, editingTitle);
                                           } else if (e.key === 'Escape') {
                                             setEditingMeetingId(null);
                                           }
                                         }}
-                                        onBlur={() => {
-                                          if (editingTitle.trim() && editingTitle !== meeting.title) {
-                                            onUpdateMeeting({ ...meeting, title: editingTitle.trim() });
-                                          }
-                                          setEditingMeetingId(null);
-                                          const editorElement = document.querySelector('.ProseMirror');
-                                          if (editorElement) {
-                                            (editorElement as HTMLElement).focus();
-                                          }
-                                        }}
+                                        onBlur={() => handleMeetingUpdate(meeting, editingTitle)}
                                         className="px-1 py-0.5 border border-blue-300 rounded text-sm min-w-0"
                                         onClick={e => e.stopPropagation()}
                                       />
@@ -530,7 +569,7 @@ export function MeetingList({
                                   ? 'bg-gray-100'
                                   : 'hover:bg-gray-100 border-b border-gray-100'
                             }`}
-                            onClick={() => !meeting.isDivider && onSelectMeeting(meeting)}
+                            onClick={() => handleMeetingSelect(meeting)}
                           >
                             <span className="text-gray-400 flex-shrink-0">
                               <GripVertical size={meeting.isDivider ? 12 : 16} />
