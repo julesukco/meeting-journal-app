@@ -88,17 +88,17 @@ export const NextTimeNotes: React.FC<NextTimeNotesProps> = ({
   return (
     <div
       ref={containerRef}
-      className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-300 shadow-lg transition-all duration-300 ease-in-out"
+      className="fixed bottom-0 bg-white border-t border-gray-300 shadow-lg transition-all duration-300 ease-in-out"
       style={{ 
         height: isExpanded ? 'auto' : '32px',
-        maxHeight: '40%',
+        maxHeight: '60%', // Increased from 40% to 60%
         zIndex: 50,
         opacity: isExpanded ? 1 : 0.95,
-        marginLeft: isExpanded ? '240px' : 'calc(50% - 150px)', // Center when collapsed, respect left nav when expanded
-        marginRight: isExpanded ? '240px' : 'calc(50% - 150px)', // Center when collapsed, respect right nav when expanded
+        left: isExpanded ? 'calc(50% - 250px)' : 'calc(50% - 150px)', // Narrower when expanded (500px width)
+        right: isExpanded ? 'calc(50% - 250px)' : 'calc(50% - 150px)', // Narrower when expanded (500px width)
         transform: isExpanded ? 'translateY(0)' : 'translateY(calc(100% - 32px))',
-        borderTopLeftRadius: isExpanded ? '0' : '12px',
-        borderTopRightRadius: isExpanded ? '0' : '12px',
+        borderTopLeftRadius: '12px',
+        borderTopRightRadius: '12px',
         boxShadow: isExpanded ? '0 -4px 6px -1px rgba(0, 0, 0, 0.1), 0 -2px 4px -1px rgba(0, 0, 0, 0.06)' : '0 -2px 4px -1px rgba(0, 0, 0, 0.06)'
       }}
       onMouseEnter={() => setIsExpanded(true)}
@@ -139,14 +139,14 @@ export const NextTimeNotes: React.FC<NextTimeNotesProps> = ({
       </div>
       
       {isExpanded && (
-        <div className="p-4 overflow-auto bg-gray-50" style={{ maxHeight: 'calc(40% - 40px)' }}>
+        <div className="p-4 overflow-auto bg-gray-50" style={{ maxHeight: 'calc(60% - 40px)' }}>
           <textarea
             ref={textareaRef}
             value={notes}
             onChange={handleNotesChange}
             placeholder="Add notes for next time..."
             className="w-full p-3 border border-gray-200 rounded-lg shadow-inner resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white"
-            style={{ minHeight: '80px', fontSize: '0.95rem', lineHeight: '1.5' }}
+            style={{ minHeight: '160px', fontSize: '0.95rem', lineHeight: '1.5' }}
           />
           <div className="mt-2 text-xs text-gray-500 flex justify-between items-center">
             <span>Hover away to minimize</span>
