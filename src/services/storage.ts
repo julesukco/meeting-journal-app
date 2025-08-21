@@ -15,6 +15,7 @@ export interface Meeting {
   notes: string;
   attendees: string[];
   content: string;
+  nextTimeNotes?: string; // Notes for the next meeting
   group?: string;
   isDivider?: boolean;
   subDivider?: string;

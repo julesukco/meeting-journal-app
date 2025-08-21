@@ -19,6 +19,7 @@ import { marked } from 'marked';
 import '../styles/editor.css';
 import { Extension } from '@tiptap/core';
 import { Node as ProseMirrorNode } from 'prosemirror-model';
+import { NextTimeNotes } from './NextTimeNotes';
 
 interface EditorProps {
   meeting: Meeting | null;
@@ -528,6 +529,18 @@ const Editor: React.FC<EditorProps> = ({
     }
   };
 
+  // Handle copying next time notes to the meeting content
+  const handleCopyToMeeting = useCallback((notes: string) => {
+    if (meeting && editor) {
+      // Append the next time notes to the end of the meeting content
+      editor.chain().focus().command(({ tr, commands }) => {
+        const lastPos = tr.doc.content.size;
+        tr.insertText(`\n\nNext time notes:\n${notes}`, lastPos);
+        return true;
+      }).run();
+    }
+  }, [meeting, editor]);
+
   return (
     <div className="flex-1 flex flex-col h-screen" ref={editorRef}>
       {meeting ? (
@@ -686,6 +699,13 @@ const Editor: React.FC<EditorProps> = ({
           <div className="flex-1 overflow-y-auto p-4">
             <EditorContent editor={editor} />
           </div>
+          
+          {/* Next Time Notes component */}
+          <NextTimeNotes 
+            meeting={meeting}
+            onUpdateMeeting={onUpdateMeeting}
+            onCopyToMeeting={handleCopyToMeeting}
+          />
         </div>
       ) : (
         <div className="flex-1 flex items-center justify-center text-gray-400 text-lg">

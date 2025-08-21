@@ -301,6 +301,7 @@ function App() {
       content: '',
       notes: '',
       attendees: [],
+      nextTimeNotes: '',
       createdAt: now,
       updatedAt: now
     };
