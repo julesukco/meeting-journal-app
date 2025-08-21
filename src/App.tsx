@@ -9,7 +9,7 @@ import { RightNav } from './components/RightNav';
 import { SearchDialog } from './components/SearchDialog';
 import { MeetingListScreen } from './screens/MeetingListScreen';
 import { MeetingView } from './components/MeetingView';
-import { PerformanceMonitor } from './components/PerformanceMonitor';
+
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { get, set } from 'idb-keyval';
 
@@ -537,7 +537,6 @@ function App() {
           onClose={() => setShowSearch(false)}
         />
       )}
-      <PerformanceMonitor lastSaveTime={lastSaveTime} />
     </Router>
   );
 }
