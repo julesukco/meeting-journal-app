@@ -105,18 +105,24 @@ export const NextTimeNotes: React.FC<NextTimeNotesProps> = ({
       onMouseLeave={() => setIsExpanded(false)}
     >
       <div 
-        className={`flex items-center justify-between px-4 py-1 bg-gradient-to-r from-blue-500 to-indigo-600 cursor-pointer transition-all duration-300 hover:from-blue-600 hover:to-indigo-700 ${
+        className={`flex items-center justify-between px-4 py-1 cursor-pointer transition-all duration-300 ${
+          notes.trim() 
+            ? 'bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700' 
+            : 'bg-gray-200 hover:bg-gray-300'
+        } ${
           isExpanded ? 'border-b border-gray-200' : 'rounded-t-xl'
         }`}
         onClick={() => setIsExpanded(!isExpanded)}
       >
         <div className="flex items-center">
           <ChevronUp 
-            className={`w-4 h-4 mr-2 transition-transform duration-300 text-white ${
+            className={`w-4 h-4 mr-2 transition-transform duration-300 ${
+              notes.trim() ? 'text-white' : 'text-gray-600'
+            } ${
               isExpanded ? 'transform rotate-180' : ''
             }`} 
           />
-          <span className="font-medium text-white text-sm">Next Time Notes</span>
+          <span className={`font-medium text-sm ${notes.trim() ? 'text-white' : 'text-gray-700'}`}>Next Time Notes</span>
         </div>
         {isExpanded && (
           <button
