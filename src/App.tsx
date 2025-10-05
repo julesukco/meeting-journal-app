@@ -71,18 +71,24 @@ function App() {
         try {
           const startTime = performance.now();
           
+          // Get the current meeting from state to preserve any recent sort order changes
+          const currentMeeting = meetings.find(m => m.id === pendingMeetingUpdateRef.current!.id);
+          const meetingToUpdate = currentMeeting ? 
+            { ...pendingMeetingUpdateRef.current, sortOrder: currentMeeting.sortOrder } : 
+            pendingMeetingUpdateRef.current;
+          
           // Use requestAnimationFrame to prevent forced reflows
           requestAnimationFrame(() => {
             // Update the meetings state with the pending update
             setMeetings((prev) =>
-              prev.map((m) => (m.id === pendingMeetingUpdateRef.current!.id ? pendingMeetingUpdateRef.current! : m))
+              prev.map((m) => (m.id === meetingToUpdate.id ? meetingToUpdate : m))
             );
           });
           
           // Save to IndexedDB
           const currentMeetings = await getMeetings();
           const updatedMeetings = currentMeetings.map((m) => 
-            m.id === pendingMeetingUpdateRef.current!.id ? pendingMeetingUpdateRef.current! : m
+            m.id === meetingToUpdate.id ? meetingToUpdate : m
           );
           await saveMeetings(updatedMeetings);
           
@@ -104,7 +110,7 @@ function App() {
         }
       }
     }, 1000); // 1 second debounce
-  }, []);
+  }, [meetings]);
 
   // Save meetings to IndexedDB whenever they change (only for non-debounced updates)
   useEffect(() => {
@@ -163,18 +169,39 @@ function App() {
   }, []);
 
   // Function to handle reordering of all items (meetings and virtual duplicates)
-  const handleItemReorder = useCallback((draggedId: string, newGroup: string, newSortOrder: number) => {
+  const handleItemReorder = useCallback(async (draggedId: string, newGroup: string, newSortOrder: number) => {
     const isVirtual = draggedId.startsWith('virtual-');
     
     if (isVirtual) {
       updateVirtualDuplicateGroup(draggedId, newGroup, newSortOrder);
     } else {
       // Update real meeting
+      const updatedMeeting = {
+        id: draggedId,
+        group: newGroup || undefined,
+        sortOrder: newSortOrder,
+        updatedAt: Date.now()
+      };
+      
+      // Update state immediately for UI responsiveness
       setMeetings(prev => prev.map(m => 
         m.id === draggedId 
-          ? { ...m, group: newGroup || undefined, sortOrder: newSortOrder, updatedAt: Date.now() }
+          ? { ...m, ...updatedMeeting }
           : m
       ));
+      
+      // Save to IndexedDB immediately to prevent race conditions
+      try {
+        const currentMeetings = await getMeetings();
+        const updatedMeetings = currentMeetings.map(m => 
+          m.id === draggedId 
+            ? { ...m, ...updatedMeeting }
+            : m
+        );
+        await saveMeetings(updatedMeetings);
+      } catch (error) {
+        console.error('Error saving sort order to IndexedDB:', error);
+      }
     }
   }, [updateVirtualDuplicateGroup]);
 

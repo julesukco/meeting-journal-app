@@ -237,24 +237,36 @@ export function MeetingList({
     if (destIndex === 0) {
       // Moving to start - find the smallest sort order and go before it
       const existingSorts = currentGroupItems.map(item => item.sortOrder || item.createdAt);
-      const minSort = Math.min(...existingSorts);
       
-      // For virtual meetings with timestamp-based sort orders, use appropriate decrement
-      if (draggableId.startsWith('virtual-') && minSort > 100000) {
-        newSortOrder = minSort - Math.max(1000, Math.floor(minSort * 0.001));
+      // Handle empty array case
+      if (existingSorts.length === 0) {
+        newSortOrder = Date.now();
       } else {
-        newSortOrder = minSort - 1000;
+        const minSort = Math.min(...existingSorts);
+        
+        // For virtual meetings with timestamp-based sort orders, use appropriate decrement
+        if (draggableId.startsWith('virtual-') && minSort > 100000) {
+          newSortOrder = minSort - Math.max(1000, Math.floor(minSort * 0.001));
+        } else {
+          newSortOrder = minSort - 1000;
+        }
       }
     } else if (destIndex >= currentGroupItems.length) {
       // Moving to end - find the largest sort order and go after it
       const existingSorts = currentGroupItems.map(item => item.sortOrder || item.createdAt);
-      const maxSort = Math.max(...existingSorts);
       
-      // For virtual meetings with timestamp-based sort orders, use appropriate increment
-      if (draggableId.startsWith('virtual-') && maxSort > 100000) {
-        newSortOrder = maxSort + Math.max(1000, Math.floor(maxSort * 0.001));
+      // Handle empty array case
+      if (existingSorts.length === 0) {
+        newSortOrder = Date.now();
       } else {
-        newSortOrder = maxSort + 1000;
+        const maxSort = Math.max(...existingSorts);
+        
+        // For virtual meetings with timestamp-based sort orders, use appropriate increment
+        if (draggableId.startsWith('virtual-') && maxSort > 100000) {
+          newSortOrder = maxSort + Math.max(1000, Math.floor(maxSort * 0.001));
+        } else {
+          newSortOrder = maxSort + 1000;
+        }
       }
     } else {
       // Moving between items - use the actual adjacent items' sort orders
@@ -264,27 +276,29 @@ export function MeetingList({
       const prevSort = prevItem ? (prevItem.sortOrder || prevItem.createdAt) : 0;
       const nextSort = nextItem ? (nextItem.sortOrder || nextItem.createdAt) : Date.now() + 1000;
       
-      // Special handling for virtual meetings to avoid sort order mismatches
-      if (draggableId.startsWith('virtual-') && (prevSort > 100000 || nextSort > 100000)) {
-        // If we're dealing with timestamp-based sort orders, ensure we stay in that range
-        const gap = nextSort - prevSort;
-        if (gap > 2) {
-          newSortOrder = Math.floor(prevSort + gap / 2);
-        } else {
-          // If items are too close, place it just after the previous item
-          newSortOrder = prevSort + 1;
-        }
+      // Handle edge cases where sort orders are the same or invalid
+      if (prevSort >= nextSort) {
+        // If items have same sort order or are out of order, use a simple increment
+        newSortOrder = prevSort + 1;
       } else {
         // Calculate midpoint for normal sort orders
         const gap = nextSort - prevSort;
-        if (gap > 100) {
-          newSortOrder = prevSort + Math.floor(gap / 2);
+        
+        if (gap <= 1) {
+          // If gap is too small, use simple increment
+          newSortOrder = prevSort + 1;
+        } else if (gap <= 10) {
+          // For small gaps, use integer midpoint
+          newSortOrder = Math.floor(prevSort + gap / 2);
         } else {
-          // If gap is too small, create more space by using a fraction
-          newSortOrder = prevSort + (gap / 2);
+          // For larger gaps, use a more precise calculation but ensure integer result
+          newSortOrder = Math.floor(prevSort + gap / 2);
         }
       }
     }
+
+    // Ensure the sort order is an integer to avoid precision issues
+    newSortOrder = Math.floor(newSortOrder);
 
     // Handle the reorder through the unified system
     const newGroup = destGroup === 'ungrouped' ? '' : destGroup;
