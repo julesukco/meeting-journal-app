@@ -310,11 +310,40 @@ const Editor: React.FC<EditorProps> = ({
   useEffect(() => {
     if (editor && meeting) {
       editor.commands.setContent(processCompletedItems(meeting.content));
-      // Position cursor at the end and scroll to bottom
-      editor.commands.focus('end');
+      
+      // Find the last block with actual text content and position cursor there
+      const doc = editor.state.doc;
+      let lastNonEmptyBlockEndPos = 1; // Default to start if no content
+      
+      // Traverse the document to find the last block with non-empty text content
+      doc.descendants((node, pos) => {
+        if (node.isBlock && node.textContent.trim().length > 0) {
+          // Position at the end of this block's content
+          lastNonEmptyBlockEndPos = pos + node.nodeSize - 1;
+        }
+        return true;
+      });
+      
+      // Position cursor at the end of the last non-empty block
+      editor.commands.setTextSelection(lastNonEmptyBlockEndPos);
+      editor.commands.focus();
+      
+      // Scroll to make the cursor visible
       const editorElement = document.querySelector('.ProseMirror');
       if (editorElement) {
-        editorElement.scrollTop = editorElement.scrollHeight;
+        // Use a small delay to let the selection be applied before scrolling
+        setTimeout(() => {
+          const selection = window.getSelection();
+          if (selection && selection.rangeCount > 0) {
+            const range = selection.getRangeAt(0);
+            const rect = range.getBoundingClientRect();
+            const editorRect = editorElement.getBoundingClientRect();
+            // Scroll to show the cursor with some padding
+            if (rect.bottom > editorRect.bottom || rect.top < editorRect.top) {
+              editorElement.scrollTop = editorElement.scrollHeight;
+            }
+          }
+        }, 10);
       }
     } else if (editor && !meeting) {
       editor.commands.setContent('');
