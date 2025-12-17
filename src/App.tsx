@@ -7,6 +7,7 @@ import { ActionItems } from './components/ActionItems';
 import { exportMeetings, importMeetings, getMeetings, saveMeetings } from './services/storage';
 import { RightNav } from './components/RightNav';
 import { SearchDialog } from './components/SearchDialog';
+import { AIConfigDialog } from './components/AIConfigDialog';
 import { MeetingListScreen } from './screens/MeetingListScreen';
 import { MeetingView } from './components/MeetingView';
 
@@ -53,6 +54,7 @@ function App() {
   }, []);
 
   const [showSearch, setShowSearch] = useState(false);
+  const [showAIConfig, setShowAIConfig] = useState(false);
   const [lastSaveTime, setLastSaveTime] = useState<number>(0);
 
   // Debounced save function
@@ -264,14 +266,21 @@ function App() {
   // Global keyboard shortcut handler
   useEffect(() => {
     const handleKeyPress = (e: KeyboardEvent) => {
+      // Ctrl+, to open AI config from anywhere
+      if (e.key === ',' && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        setShowAIConfig(true);
+        return;
+      }
+
       // Check if we're not in an input or textarea
       const target = e.target as HTMLElement;
       if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') {
         return;
       }
 
-      // Backslash: Show search dialog
-      if (e.key === '\\') {
+      // Backslash or forward slash: Show search dialog
+      if (e.key === '\\' || e.key === '/') {
         e.preventDefault();
         setShowSearch(true);
       }
@@ -562,6 +571,14 @@ function App() {
           meetings={meetings}
           onSelect={handleMeetingSelect}
           onClose={() => setShowSearch(false)}
+          onOpenAIConfig={() => {
+            setShowAIConfig(true);
+          }}
+        />
+      )}
+      {showAIConfig && (
+        <AIConfigDialog
+          onClose={() => setShowAIConfig(false)}
         />
       )}
     </Router>

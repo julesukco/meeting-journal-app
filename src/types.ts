@@ -33,3 +33,14 @@ export interface ActionItem {
   createdAt: string;
   completedAt?: string;
 }
+
+export interface AIConfig {
+  apiKey: string;
+  apiEndpoint: string;
+  systemPrompt: string;
+}
+
+export interface AISearchResult {
+  response: string;
+  timestamp: number;
+}
