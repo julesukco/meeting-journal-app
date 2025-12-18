@@ -148,12 +148,18 @@ export const AIConfigDialog: React.FC<AIConfigDialogProps> = ({ onClose }) => {
               value={config.apiEndpoint}
               onChange={(e) => setConfig({ ...config, apiEndpoint: e.target.value })}
               onFocus={() => setActiveField('apiEndpoint')}
-              placeholder="https://api.example.com/ai"
+              placeholder="/api/ai"
               className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${
                 activeField === 'apiEndpoint' ? 'ring-2 ring-blue-500 border-blue-500' : 'border-gray-300'
               }`}
             />
-            <p className="mt-1 text-xs text-gray-500">The AI API endpoint URL (POST request with 'prompt' parameter)</p>
+            <div className="mt-1 text-xs text-gray-500 space-y-1">
+              <p>The AI API endpoint URL (POST request with 'prompt' parameter)</p>
+              <p className="text-blue-600">
+                💡 Use <code className="bg-gray-100 px-1 rounded">/api/ai</code> to proxy through Vite and avoid CORS issues.
+                Set the target URL via <code className="bg-gray-100 px-1 rounded">VITE_AI_API_TARGET</code> env variable.
+              </p>
+            </div>
           </div>
 
           {/* System Prompt */}

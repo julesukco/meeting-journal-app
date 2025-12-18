@@ -4,9 +4,11 @@ import { get, set } from 'idb-keyval';
 const AI_CONFIG_KEY = 'aiConfig';
 
 // Default AI config
+// Use /api/ai as the default endpoint - this is proxied through Vite to avoid CORS issues
+// Set the actual target URL via VITE_AI_API_TARGET environment variable
 const defaultAIConfig: AIConfig = {
   apiKey: '',
-  apiEndpoint: 'https://api.example.com/ai',
+  apiEndpoint: '/api/ai',
   systemPrompt: 'You are a helpful assistant that analyzes meeting notes and provides insights. Format your responses clearly and concisely.',
 };
 
