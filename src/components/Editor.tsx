@@ -466,11 +466,60 @@ const Editor: React.FC<EditorProps> = ({
             onSearchSelectionUsed();
           }
         } else {
-          console.log('No search selection found, scrolling to end');
-          editor.commands.focus('end');
+          console.log('No search selection found, positioning on new line after last content');
+          
+          // Find the last block node (paragraph, heading, etc.) that has actual text content
+          const doc = editor.state.doc;
+          let lastContentBlockEnd = 1; // Default to start
+          
+          // Walk through all nodes to find the last one with content
+          doc.descendants((node, pos) => {
+            // Check if this is a block node with text content
+            if (node.isBlock && node.textContent && node.textContent.trim().length > 0) {
+              // Record the position at the END of this block
+              lastContentBlockEnd = pos + node.nodeSize;
+            }
+            return true; // Continue walking to find the very last one
+          });
+          
+          // The position after the last content block should be the start of the next line
+          // We need to add 1 to get inside the next paragraph
+          const targetPos = Math.min(lastContentBlockEnd + 1, doc.content.size);
+          
+          console.log('Last content ends at:', lastContentBlockEnd, 'targeting pos:', targetPos, 'doc size:', doc.content.size);
+          
+          // Set cursor at the target position
+          try {
+            editor.commands.setTextSelection(targetPos);
+            editor.commands.focus();
+          } catch (e) {
+            console.log('Failed to set position, falling back to end:', e);
+            // Fallback to end if position is invalid
+            editor.commands.focus('end');
+          }
+          
+          // Scroll to show the cursor position
           const editorElement = document.querySelector('.ProseMirror');
           if (editorElement) {
-            editorElement.scrollTop = editorElement.scrollHeight;
+            // Small delay to let the cursor position update
+            setTimeout(() => {
+              const selection = window.getSelection();
+              if (selection && selection.rangeCount > 0) {
+                const range = selection.getRangeAt(0);
+                const rect = range.getBoundingClientRect();
+                const editorRect = editorElement.getBoundingClientRect();
+                const scrollContainer = editorElement.parentElement;
+                
+                if (scrollContainer && rect.top > 0) {
+                  // Scroll so cursor is visible near bottom but with some margin
+                  const targetScrollTop = scrollContainer.scrollTop + (rect.top - editorRect.top) - (scrollContainer.clientHeight - 100);
+                  scrollContainer.scrollTo({
+                    top: Math.max(0, targetScrollTop),
+                    behavior: 'smooth'
+                  });
+                }
+              }
+            }, 50);
           }
         }
       }, 250);
