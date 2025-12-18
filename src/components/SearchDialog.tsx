@@ -4,6 +4,7 @@ import { getAIConfig, callAI, formatMeetingsForAI } from '../services/ai';
 
 interface SearchDialogProps {
   meetings: Meeting[];
+  currentMeeting?: Meeting | null;
   onSelect: (meeting: Meeting, matchIndex: number, match: {start: number, end: number}) => void;
   onClose: () => void;
   onOpenAIConfig: () => void;
@@ -32,7 +33,7 @@ function removeImageTags(html: string) {
   return html.replace(/<img[^>]*>/gi, '');
 }
 
-export const SearchDialog: React.FC<SearchDialogProps> = ({ meetings, onSelect, onClose, onOpenAIConfig }) => {
+export const SearchDialog: React.FC<SearchDialogProps> = ({ meetings, currentMeeting, onSelect, onClose, onOpenAIConfig }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedMeetingIndex, setSelectedMeetingIndex] = useState(0);
   const [selectedMatchIndex, setSelectedMatchIndex] = useState(0);
@@ -124,7 +125,7 @@ export const SearchDialog: React.FC<SearchDialogProps> = ({ meetings, onSelect, 
     setSelectedMatchIndex(0);
   }, [selectedMeetingIndex]);
 
-  // Handle AI search
+  // Handle AI search - only uses the current meeting context
   const handleAISearch = useCallback(async () => {
     if (!aiPrompt.trim()) return;
     
@@ -133,13 +134,19 @@ export const SearchDialog: React.FC<SearchDialogProps> = ({ meetings, onSelect, 
       return;
     }
 
+    if (!currentMeeting) {
+      setAiError('No meeting selected. Please select a meeting first.');
+      return;
+    }
+
     setAiLoading(true);
     setAiError(null);
     setAiResult(null);
 
     try {
-      const meetingsContext = formatMeetingsForAI(meetings);
-      const result = await callAI(aiPrompt, meetingsContext, aiConfig);
+      // Only use the current meeting for AI context
+      const meetingContext = formatMeetingsForAI([currentMeeting]);
+      const result = await callAI(aiPrompt, meetingContext, aiConfig);
       setAiResult(result);
       // Focus on result area for scrolling
       setTimeout(() => resultRef.current?.focus(), 100);
@@ -148,7 +155,7 @@ export const SearchDialog: React.FC<SearchDialogProps> = ({ meetings, onSelect, 
     } finally {
       setAiLoading(false);
     }
-  }, [aiPrompt, aiConfig, meetings]);
+  }, [aiPrompt, aiConfig, currentMeeting]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     // Global shortcuts (work in both modes)
@@ -366,10 +373,10 @@ export const SearchDialog: React.FC<SearchDialogProps> = ({ meetings, onSelect, 
                   ref={aiInputRef}
                   value={aiPrompt}
                   onChange={(e) => setAiPrompt(e.target.value)}
-                  placeholder="Ask AI about your meetings... (Ctrl+Enter to search, Ctrl+, for settings)"
+                  placeholder={currentMeeting ? `Ask AI about "${currentMeeting.title}"... (Ctrl+Enter to search)` : "Select a meeting first to use AI search"}
                   rows={3}
                   className="w-full px-4 py-3 text-base border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 resize-none"
-                  disabled={aiLoading}
+                  disabled={aiLoading || !currentMeeting}
                 />
                 <div className="absolute bottom-2 right-2 flex gap-2">
                   <button
@@ -381,9 +388,9 @@ export const SearchDialog: React.FC<SearchDialogProps> = ({ meetings, onSelect, 
                   </button>
                   <button
                     onClick={handleAISearch}
-                    disabled={aiLoading || !aiPrompt.trim()}
+                    disabled={aiLoading || !aiPrompt.trim() || !currentMeeting}
                     className={`px-3 py-1 text-sm rounded ${
-                      aiLoading || !aiPrompt.trim()
+                      aiLoading || !aiPrompt.trim() || !currentMeeting
                         ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
                         : 'bg-purple-600 text-white hover:bg-purple-700'
                     }`}
@@ -407,7 +414,7 @@ export const SearchDialog: React.FC<SearchDialogProps> = ({ meetings, onSelect, 
                 <div className="flex items-center justify-center h-full">
                   <div className="text-center">
                     <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-purple-600 mx-auto mb-3"></div>
-                    <p className="text-gray-600">Analyzing {meetings.length} meetings...</p>
+                    <p className="text-gray-600">Analyzing meeting: {currentMeeting?.title || 'Unknown'}...</p>
                     <p className="text-sm text-gray-400 mt-1">This may take a moment</p>
                   </div>
                 </div>
@@ -460,13 +467,19 @@ export const SearchDialog: React.FC<SearchDialogProps> = ({ meetings, onSelect, 
                 <div className="flex items-center justify-center h-full text-gray-400">
                   <div className="text-center">
                     <span className="text-4xl mb-3 block">✨</span>
-                    <p>Ask AI anything about your {meetings.length} meetings</p>
-                    <p className="text-sm mt-2">Examples:</p>
-                    <ul className="text-sm mt-1 space-y-1">
-                      <li>"Summarize all action items from last week"</li>
-                      <li>"What decisions were made about the project?"</li>
-                      <li>"Find all mentions of budget across meetings"</li>
-                    </ul>
+                    {currentMeeting ? (
+                      <>
+                        <p>Ask AI about: <span className="font-medium text-gray-600">{currentMeeting.title}</span></p>
+                        <p className="text-sm mt-2">Examples:</p>
+                        <ul className="text-sm mt-1 space-y-1">
+                          <li>"Summarize the key points"</li>
+                          <li>"What action items were discussed?"</li>
+                          <li>"What decisions were made?"</li>
+                        </ul>
+                      </>
+                    ) : (
+                      <p>Select a meeting first to use AI search</p>
+                    )}
                   </div>
                 </div>
               )}
@@ -479,7 +492,9 @@ export const SearchDialog: React.FC<SearchDialogProps> = ({ meetings, onSelect, 
           <span>
             {mode === 'basic' 
               ? `${matchingMeetings.length} matching meetings`
-              : `${meetings.length} meetings will be included in AI context`
+              : currentMeeting 
+                ? `AI context: ${currentMeeting.title}`
+                : 'No meeting selected for AI'
             }
           </span>
           <span>Press <span className="bg-gray-200 px-1 rounded">Esc</span> to close</span>

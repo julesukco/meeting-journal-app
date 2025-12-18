@@ -98,8 +98,10 @@ export function MeetingListScreen() {
         {showSearch && (
           <SearchDialog
             meetings={meetings}
+            currentMeeting={selectedMeeting}
             onSelect={handleMeetingSelect}
             onClose={() => setShowSearch(false)}
+            onOpenAIConfig={() => {}}
           />
         )}
       </div>
