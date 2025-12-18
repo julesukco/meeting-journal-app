@@ -16,7 +16,24 @@ const defaultAIConfig: AIConfig = {
 export const getAIConfig = async (): Promise<AIConfig> => {
   try {
     const config = await get(AI_CONFIG_KEY);
-    return config || defaultAIConfig;
+    if (!config) {
+      return defaultAIConfig;
+    }
+    
+    // Migrate: if endpoint is a full external URL, update to use proxy
+    if (config.apiEndpoint && 
+        (config.apiEndpoint.startsWith('http://') || config.apiEndpoint.startsWith('https://')) &&
+        !config.apiEndpoint.startsWith('http://localhost')) {
+      console.log('Migrating AI config to use proxy endpoint');
+      const migratedConfig = {
+        ...config,
+        apiEndpoint: '/api/ai',
+      };
+      await set(AI_CONFIG_KEY, migratedConfig);
+      return migratedConfig;
+    }
+    
+    return config;
   } catch (error) {
     console.error('Error getting AI config:', error);
     return defaultAIConfig;
