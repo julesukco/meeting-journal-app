@@ -403,8 +403,9 @@ const Editor: React.FC<EditorProps> = ({
               const scrollContainer = editorElement.parentElement;
               
               if (scrollContainer) {
-                // Calculate scroll position to center the selection
-                const targetScrollTop = scrollContainer.scrollTop + (rect.top - editorRect.top) - (scrollContainer.clientHeight / 3);
+                // Calculate scroll position to put the selection near the top (with some padding)
+                // Using 1/4 of viewport height from top, plus extra 100px margin for any overlays
+                const targetScrollTop = scrollContainer.scrollTop + (rect.top - editorRect.top) - 150;
                 scrollContainer.scrollTo({
                   top: Math.max(0, targetScrollTop),
                   behavior: 'smooth'
