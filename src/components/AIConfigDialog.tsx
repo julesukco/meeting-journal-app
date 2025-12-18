@@ -8,30 +8,18 @@ interface AIConfigDialogProps {
 
 export const AIConfigDialog: React.FC<AIConfigDialogProps> = ({ onClose }) => {
   const [config, setConfig] = useState<AIConfig>({
-    apiKey: '',
-    apiEndpoint: '',
     systemPrompt: '',
   });
-  const [activeField, setActiveField] = useState<'apiKey' | 'apiEndpoint' | 'systemPrompt'>('apiKey');
   const [saved, setSaved] = useState(false);
   const [loading, setLoading] = useState(true);
   
-  const apiKeyRef = useRef<HTMLInputElement>(null);
-  const apiEndpointRef = useRef<HTMLInputElement>(null);
   const systemPromptRef = useRef<HTMLTextAreaElement>(null);
-
-  const [usingEnvKey, setUsingEnvKey] = useState(false);
-  const [usingEnvEndpoint, setUsingEnvEndpoint] = useState(false);
 
   useEffect(() => {
     const loadConfig = async () => {
       try {
         const storedConfig = await getAIConfig();
         setConfig(storedConfig);
-        
-        // Check if environment variables are being used
-        setUsingEnvKey(!!import.meta.env.VITE_AI_API_KEY);
-        setUsingEnvEndpoint(!!import.meta.env.VITE_AI_API_ENDPOINT);
       } catch (error) {
         console.error('Error loading AI config:', error);
       } finally {
@@ -42,9 +30,9 @@ export const AIConfigDialog: React.FC<AIConfigDialogProps> = ({ onClose }) => {
   }, []);
 
   useEffect(() => {
-    // Focus on API key field when dialog opens
+    // Focus on system prompt field when dialog opens
     if (!loading) {
-      apiKeyRef.current?.focus();
+      systemPromptRef.current?.focus();
     }
   }, [loading]);
 
@@ -65,20 +53,6 @@ export const AIConfigDialog: React.FC<AIConfigDialogProps> = ({ onClose }) => {
       case 'Escape':
         e.preventDefault();
         onClose();
-        break;
-      case 'Tab':
-        e.preventDefault();
-        // Cycle through fields
-        if (activeField === 'apiKey') {
-          setActiveField('apiEndpoint');
-          apiEndpointRef.current?.focus();
-        } else if (activeField === 'apiEndpoint') {
-          setActiveField('systemPrompt');
-          systemPromptRef.current?.focus();
-        } else {
-          setActiveField('apiKey');
-          apiKeyRef.current?.focus();
-        }
         break;
       case 'Enter':
         // Save on Ctrl+Enter or Cmd+Enter
@@ -117,72 +91,27 @@ export const AIConfigDialog: React.FC<AIConfigDialogProps> = ({ onClose }) => {
           <div className="flex justify-between items-center">
             <h2 className="text-xl font-semibold text-gray-800">AI Configuration</h2>
             <div className="text-sm text-gray-500">
-              <span className="bg-gray-100 px-2 py-1 rounded mr-2">Tab</span> navigate
-              <span className="bg-gray-100 px-2 py-1 rounded mx-2">Ctrl+S</span> save
+              <span className="bg-gray-100 px-2 py-1 rounded mr-2">Ctrl+S</span> save
               <span className="bg-gray-100 px-2 py-1 rounded ml-2">Esc</span> close
             </div>
           </div>
         </div>
         
         <div className="p-4 space-y-4">
-          {/* API Key */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              API Key
-              {usingEnvKey && (
-                <span className="ml-2 text-xs text-blue-600 font-normal">
-                  (from VITE_AI_API_KEY env variable)
-                </span>
-              )}
-            </label>
-            <input
-              ref={apiKeyRef}
-              type="password"
-              value={config.apiKey}
-              onChange={(e) => setConfig({ ...config, apiKey: e.target.value })}
-              onFocus={() => setActiveField('apiKey')}
-              placeholder={usingEnvKey ? "Set via VITE_AI_API_KEY in .env file" : "Enter your API key"}
-              disabled={usingEnvKey}
-              className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${
-                activeField === 'apiKey' ? 'ring-2 ring-blue-500 border-blue-500' : 'border-gray-300'
-              } ${usingEnvKey ? 'bg-gray-100 cursor-not-allowed' : ''}`}
-            />
-            <p className="mt-1 text-xs text-gray-500">
-              {usingEnvKey 
-                ? 'API key is loaded from VITE_AI_API_KEY environment variable. Set it in your .env file.'
-                : 'Your API key will be stored locally, or set VITE_AI_API_KEY in your .env file'}
-            </p>
-          </div>
-
-          {/* API Endpoint */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              API Endpoint
-              {usingEnvEndpoint && (
-                <span className="ml-2 text-xs text-blue-600 font-normal">
-                  (from VITE_AI_API_ENDPOINT env variable)
-                </span>
-              )}
-            </label>
-            <input
-              ref={apiEndpointRef}
-              type="text"
-              value={config.apiEndpoint}
-              onChange={(e) => setConfig({ ...config, apiEndpoint: e.target.value })}
-              onFocus={() => setActiveField('apiEndpoint')}
-              placeholder={usingEnvEndpoint ? "Set via VITE_AI_API_ENDPOINT in .env file" : "/api/ai"}
-              disabled={usingEnvEndpoint}
-              className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${
-                activeField === 'apiEndpoint' ? 'ring-2 ring-blue-500 border-blue-500' : 'border-gray-300'
-              } ${usingEnvEndpoint ? 'bg-gray-100 cursor-not-allowed' : ''}`}
-            />
-            <div className="mt-1 text-xs text-gray-500 space-y-1">
-              <p>The AI API endpoint URL (POST request with 'prompt' parameter)</p>
-              <p className="text-blue-600">
-                💡 Use <code className="bg-gray-100 px-1 rounded">/api/ai</code> to proxy through Vite and avoid CORS issues.
-                Set the target URL via <code className="bg-gray-100 px-1 rounded">VITE_AI_API_TARGET</code> env variable.
-                {usingEnvEndpoint && ' Endpoint is set via VITE_AI_API_ENDPOINT.'}
-              </p>
+          {/* Info about API configuration */}
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <div className="flex items-start">
+              <span className="text-blue-500 mr-2">ℹ️</span>
+              <div className="text-sm text-blue-800">
+                <p className="font-medium mb-1">API Configuration</p>
+                <p>
+                  The AI API key and endpoint are configured via environment variables in your <code className="bg-blue-100 px-1 rounded">.env</code> file:
+                </p>
+                <ul className="mt-2 space-y-1 text-blue-700">
+                  <li><code className="bg-blue-100 px-1 rounded">AI_API_KEY</code> - Your API key (required)</li>
+                  <li><code className="bg-blue-100 px-1 rounded">VITE_AI_API_TARGET</code> - The target API URL</li>
+                </ul>
+              </div>
             </div>
           </div>
 
@@ -195,15 +124,12 @@ export const AIConfigDialog: React.FC<AIConfigDialogProps> = ({ onClose }) => {
               ref={systemPromptRef}
               value={config.systemPrompt}
               onChange={(e) => setConfig({ ...config, systemPrompt: e.target.value })}
-              onFocus={() => setActiveField('systemPrompt')}
               placeholder="Enter a system prompt to guide AI responses..."
-              rows={4}
-              className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 resize-none ${
-                activeField === 'systemPrompt' ? 'ring-2 ring-blue-500 border-blue-500' : 'border-gray-300'
-              }`}
+              rows={6}
+              className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 border-gray-300 resize-none"
             />
             <p className="mt-1 text-xs text-gray-500">
-              This prompt will be prepended to every AI request to guide the response format
+              This prompt will be prepended to every AI request to guide the response format and behavior.
             </p>
           </div>
         </div>

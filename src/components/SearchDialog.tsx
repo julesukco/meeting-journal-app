@@ -128,8 +128,8 @@ export const SearchDialog: React.FC<SearchDialogProps> = ({ meetings, onSelect, 
   const handleAISearch = useCallback(async () => {
     if (!aiPrompt.trim()) return;
     
-    if (!aiConfig || !aiConfig.apiKey) {
-      setAiError('API key not configured. Press Ctrl+, to open settings.');
+    if (!aiConfig) {
+      setAiError('AI configuration not loaded. Please try again.');
       return;
     }
 

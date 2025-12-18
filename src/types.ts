@@ -35,8 +35,6 @@ export interface ActionItem {
 }
 
 export interface AIConfig {
-  apiKey: string;
-  apiEndpoint: string;
   systemPrompt: string;
 }
 

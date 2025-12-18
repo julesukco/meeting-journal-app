@@ -3,71 +3,31 @@ import { get, set } from 'idb-keyval';
 
 const AI_CONFIG_KEY = 'aiConfig';
 
-// Default AI config
-// Use /api/ai as the default endpoint - this is proxied through Vite to avoid CORS issues
-// Set the actual target URL via VITE_AI_API_TARGET environment variable
-const defaultAIConfig: AIConfig = {
-  apiKey: '',
-  apiEndpoint: '/api/ai',
-  systemPrompt: 'You are a helpful assistant that analyzes meeting notes and provides insights. Format your responses clearly and concisely.',
-};
+// Fixed proxy endpoint - all requests go through Vite proxy
+const PROXY_ENDPOINT = '/api/ai';
 
-// Get AI config from storage, with environment variable override
+// Default system prompt
+const DEFAULT_SYSTEM_PROMPT = 'You are a helpful assistant that analyzes meeting notes and provides insights. Format your responses clearly and concisely.';
+
+// Get AI config - system prompt from storage, everything else from env
 export const getAIConfig = async (): Promise<AIConfig> => {
   try {
-    // Check for environment variables first (highest priority)
-    const envApiKey = import.meta.env.VITE_AI_API_KEY;
-    const envApiEndpoint = import.meta.env.VITE_AI_API_ENDPOINT;
-    
-    // Get stored config from IndexedDB
     const storedConfig = await get(AI_CONFIG_KEY);
-    
-    // Build config with priority: env vars > stored config > defaults
-    let config: AIConfig;
-    
-    if (storedConfig) {
-      config = { ...storedConfig };
-    } else {
-      config = { ...defaultAIConfig };
-    }
-    
-    // Override with environment variables if set
-    if (envApiKey) {
-      config.apiKey = envApiKey;
-    }
-    if (envApiEndpoint) {
-      config.apiEndpoint = envApiEndpoint;
-    }
-    
-    // Migrate: if endpoint is a full external URL, update to use proxy
-    if (config.apiEndpoint && 
-        (config.apiEndpoint.startsWith('http://') || config.apiEndpoint.startsWith('https://')) &&
-        !config.apiEndpoint.startsWith('http://localhost')) {
-      console.log('Migrating AI config to use proxy endpoint');
-      const migratedConfig = {
-        ...config,
-        apiEndpoint: '/api/ai',
-      };
-      await set(AI_CONFIG_KEY, migratedConfig);
-      return migratedConfig;
-    }
-    
-    return config;
+    return {
+      systemPrompt: storedConfig?.systemPrompt || DEFAULT_SYSTEM_PROMPT,
+    };
   } catch (error) {
     console.error('Error getting AI config:', error);
-    // Fallback to defaults, but still check env vars
     return {
-      ...defaultAIConfig,
-      apiKey: import.meta.env.VITE_AI_API_KEY || defaultAIConfig.apiKey,
-      apiEndpoint: import.meta.env.VITE_AI_API_ENDPOINT || defaultAIConfig.apiEndpoint,
+      systemPrompt: DEFAULT_SYSTEM_PROMPT,
     };
   }
 };
 
-// Save AI config to storage
+// Save AI config (only system prompt is saved)
 export const saveAIConfig = async (config: AIConfig): Promise<void> => {
   try {
-    await set(AI_CONFIG_KEY, config);
+    await set(AI_CONFIG_KEY, { systemPrompt: config.systemPrompt });
   } catch (error) {
     console.error('Error saving AI config:', error);
     throw error;
@@ -116,69 +76,30 @@ export const formatMeetingsForAI = (meetings: Meeting[]): string => {
     .join('\n\n');
 };
 
-// Call AI API
+// Call AI API through the Vite proxy
 export const callAI = async (
   userPrompt: string,
   meetingsContext: string,
   config: AIConfig
 ): Promise<AISearchResult> => {
-  if (!config.apiKey || config.apiKey.trim() === '') {
-    throw new Error('API key is not configured. Set VITE_AI_API_KEY in your .env file or press Ctrl+, to configure in settings.');
-  }
-
-  if (!config.apiEndpoint || config.apiEndpoint.trim() === '') {
-    throw new Error('API endpoint is not configured. Press Ctrl+, to configure AI settings.');
-  }
-
   const fullPrompt = config.systemPrompt
     ? `${config.systemPrompt}\n\n---\nMeeting Context:\n${meetingsContext}\n---\n\nUser Query: ${userPrompt}`
     : `Meeting Context:\n${meetingsContext}\n\nUser Query: ${userPrompt}`;
 
   try {
-    // Build headers - some APIs use x-api-key instead of Authorization
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-    };
-    
-    // Determine which authentication header to use
-    // AWS API Gateway typically uses x-api-key, while most other APIs use Authorization Bearer
-    if (config.apiKey) {
-      // Check if endpoint looks like AWS API Gateway (contains .execute-api. or api-gateway)
-      const isAwsApiGateway = config.apiEndpoint.includes('.execute-api.') || 
-                              config.apiEndpoint.includes('api-gateway') ||
-                              config.apiEndpoint.includes('amazonaws.com');
-      
-      // If using proxy endpoint, we can't detect the actual API type
-      // Send both headers to cover different API authentication styles
-      const isProxyEndpoint = config.apiEndpoint.startsWith('/api/');
-      
-      if (isAwsApiGateway) {
-        // AWS API Gateway uses x-api-key header
-        headers['x-api-key'] = config.apiKey;
-      } else if (isProxyEndpoint) {
-        // For proxy endpoints, send both headers since we don't know which the backend expects
-        // This covers both AWS API Gateway (x-api-key) and standard APIs (Authorization Bearer)
-        headers['x-api-key'] = config.apiKey;
-        headers['Authorization'] = `Bearer ${config.apiKey}`;
-      } else {
-        // Standard OAuth-style API uses Authorization Bearer
-        headers['Authorization'] = `Bearer ${config.apiKey}`;
-      }
-    }
-
-    // Debug logging (remove in production if needed)
+    // Debug logging in development
     if (import.meta.env.DEV) {
       console.log('AI API Request:', {
-        endpoint: config.apiEndpoint,
-        headers: Object.keys(headers).map(k => `${k}: ${k === 'x-api-key' || k === 'Authorization' ? '***' : headers[k]}`),
-        hasApiKey: !!config.apiKey,
-        apiKeyLength: config.apiKey?.length || 0,
+        endpoint: PROXY_ENDPOINT,
+        promptLength: fullPrompt.length,
       });
     }
 
-    const response = await fetch(config.apiEndpoint, {
+    const response = await fetch(PROXY_ENDPOINT, {
       method: 'POST',
-      headers,
+      headers: {
+        'Content-Type': 'application/json',
+      },
       body: JSON.stringify({
         prompt: fullPrompt,
       }),
@@ -187,12 +108,10 @@ export const callAI = async (
     if (!response.ok) {
       let errorMessage = `API request failed: ${response.status} ${response.statusText}`;
       
-      // Read response as text first (can only read body once)
       const errorText = await response.text();
       
       if (errorText) {
         try {
-          // Try parsing the text as JSON
           const errorData = JSON.parse(errorText);
           if (errorData.message) {
             errorMessage = errorData.message;
@@ -202,18 +121,17 @@ export const callAI = async (
             errorMessage = JSON.stringify(errorData);
           }
         } catch {
-          // If not JSON, use as plain text
           errorMessage = errorText;
         }
       }
       
-      // Provide helpful context for authentication errors
-      if (response.status === 401 || response.status === 403 || errorMessage.includes('Authentication') || errorMessage.includes('Token') || errorMessage.includes('Missing')) {
-        if (!config.apiKey || config.apiKey.trim() === '') {
-          errorMessage = 'API key is missing. Please configure your API key in settings (Ctrl+,).';
-        } else {
-          errorMessage = `Authentication failed: ${errorMessage}. Please check your API key in settings (Ctrl+,). The API might require a different header format.`;
-        }
+      // Provide helpful context for common errors
+      if (response.status === 401 || response.status === 403) {
+        errorMessage = `Authentication failed: ${errorMessage}. Check that AI_API_KEY is correctly set in your .env file.`;
+      } else if (response.status === 404) {
+        errorMessage = `API endpoint not found. Check that VITE_AI_API_TARGET is correctly set in your .env file.`;
+      } else if (response.status === 502 || response.status === 503 || response.status === 504) {
+        errorMessage = `API server is unavailable (${response.status}). The target API may be down or unreachable.`;
       }
       
       throw new Error(errorMessage);
