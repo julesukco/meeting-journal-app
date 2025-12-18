@@ -5,7 +5,7 @@ import { getAIConfig, callAI, formatMeetingsForAI } from '../services/ai';
 interface SearchDialogProps {
   meetings: Meeting[];
   currentMeeting?: Meeting | null;
-  onSelect: (meeting: Meeting, matchIndex: number, match: {start: number, end: number}) => void;
+  onSelect: (meeting: Meeting, matchIndex: number, match: {start: number, end: number}, searchTerm?: string) => void;
   onClose: () => void;
   onOpenAIConfig: () => void;
 }
@@ -213,7 +213,7 @@ export const SearchDialog: React.FC<SearchDialogProps> = ({ meetings, currentMee
           onSelect(selectedMeeting, selectedMatchIndex, {
             start: matchSnippets[selectedMatchIndex].start,
             end: matchSnippets[selectedMatchIndex].end,
-          });
+          }, searchTerm);
         }
         break;
       case 'Tab':
@@ -345,7 +345,7 @@ export const SearchDialog: React.FC<SearchDialogProps> = ({ meetings, currentMee
                       key={idx}
                       className={`px-4 py-2 cursor-pointer ${idx === selectedMatchIndex ? 'bg-blue-100' : 'hover:bg-gray-50'}`}
                       onClick={() => {
-                        onSelect(selectedMeeting, idx, { start: snippet.start, end: snippet.end });
+                        onSelect(selectedMeeting, idx, { start: snippet.start, end: snippet.end }, searchTerm);
                       }}
                     >
                       <span className="text-gray-400 font-mono">{snippet.before}</span>

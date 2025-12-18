@@ -25,6 +25,8 @@ interface EditorProps {
   meeting: Meeting | null;
   onUpdateMeeting: (meeting: Meeting) => void;
   processCompletedItems: (content: string) => string;
+  searchSelection?: { start: number; end: number; searchTerm?: string } | null;
+  onSearchSelectionUsed?: () => void;
 }
 
 // Minimal custom extension for task list tab/shift+tab indentation
@@ -108,6 +110,8 @@ const Editor: React.FC<EditorProps> = ({
   meeting, 
   onUpdateMeeting,
   processCompletedItems,
+  searchSelection,
+  onSearchSelectionUsed,
 }) => {
   const [editorReady, setEditorReady] = useState(false);
   const editorRef = useRef<HTMLDivElement>(null);
@@ -310,11 +314,13 @@ const Editor: React.FC<EditorProps> = ({
   useEffect(() => {
     if (editor && meeting) {
       editor.commands.setContent(processCompletedItems(meeting.content));
-      // Position cursor at the end and scroll to bottom
-      editor.commands.focus('end');
-      const editorElement = document.querySelector('.ProseMirror');
-      if (editorElement) {
-        editorElement.scrollTop = editorElement.scrollHeight;
+      // Position cursor at the end and scroll to bottom (unless we have a search selection)
+      if (!searchSelection) {
+        editor.commands.focus('end');
+        const editorElement = document.querySelector('.ProseMirror');
+        if (editorElement) {
+          editorElement.scrollTop = editorElement.scrollHeight;
+        }
       }
     } else if (editor && !meeting) {
       editor.commands.setContent('');
@@ -322,6 +328,78 @@ const Editor: React.FC<EditorProps> = ({
     // Only run when meeting id changes
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editor, meeting?.id]);
+
+  // Handle search selection - find and highlight the search term in the editor
+  useEffect(() => {
+    if (editor && searchSelection && searchSelection.searchTerm && meeting) {
+      // Wait a moment for the content to be fully loaded
+      const timer = setTimeout(() => {
+        const searchTerm = searchSelection.searchTerm;
+        if (!searchTerm) return;
+
+        // Get the document text content
+        const docText = editor.state.doc.textContent;
+        
+        // Find the search term in the document
+        const searchTermLower = searchTerm.toLowerCase();
+        let position = -1;
+        let currentPos = 0;
+        
+        // We need to find the Nth occurrence that matches our search result
+        // Since the search was done on stripped HTML, we search in text content
+        const textLower = docText.toLowerCase();
+        
+        // Find all occurrences and use the position hint from searchSelection
+        let matchCount = 0;
+        let searchIdx = 0;
+        while ((searchIdx = textLower.indexOf(searchTermLower, searchIdx)) !== -1) {
+          // Check if this is approximately the match we want (within a reasonable range)
+          // The position in searchSelection is from stripped HTML, so it might not match exactly
+          if (Math.abs(searchIdx - searchSelection.start) < 50 || matchCount === 0) {
+            position = searchIdx;
+            break;
+          }
+          matchCount++;
+          searchIdx += 1;
+        }
+        
+        // If we found the position, convert text position to ProseMirror position
+        if (position !== -1) {
+          // Find the actual ProseMirror position by walking the document
+          let pmPos = 1; // ProseMirror positions start at 1
+          let textPos = 0;
+          
+          editor.state.doc.descendants((node, pos) => {
+            if (node.isText && textPos <= position) {
+              const nodeText = node.text || '';
+              if (textPos + nodeText.length > position) {
+                // The search term starts in this node
+                pmPos = pos + (position - textPos);
+                return false; // Stop walking
+              }
+              textPos += nodeText.length;
+            }
+            return true; // Continue walking
+          });
+          
+          // Set selection and scroll into view
+          const endPos = pmPos + searchTerm.length;
+          editor.chain()
+            .focus()
+            .setTextSelection({ from: pmPos, to: endPos })
+            .scrollIntoView()
+            .run();
+        }
+        
+        // Clear the search selection after using it
+        if (onSearchSelectionUsed) {
+          onSearchSelectionUsed();
+        }
+      }, 100);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [editor, searchSelection, meeting?.id, onSearchSelectionUsed]);
 
   // Add keyboard shortcut for task list and font size
   useEffect(() => {

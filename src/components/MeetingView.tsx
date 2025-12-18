@@ -25,6 +25,8 @@ interface MeetingViewProps {
   removeVirtualDuplicate: (duplicateId: string) => void;
   updateVirtualDuplicateGroup: (duplicateId: string, newGroup: string, newSortOrder?: number) => void;
   handleItemReorder: (draggedId: string, newGroup: string, newSortOrder: number) => void;
+  searchSelection?: { start: number; end: number; searchTerm?: string } | null;
+  onSearchSelectionUsed?: () => void;
 }
 
 export const MeetingView: React.FC<MeetingViewProps> = ({
@@ -45,6 +47,8 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
   removeVirtualDuplicate,
   updateVirtualDuplicateGroup,
   handleItemReorder,
+  searchSelection,
+  onSearchSelectionUsed,
 }) => {
   const navigate = useNavigate();
   const { id } = useParams();
@@ -150,6 +154,8 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
           meeting={selectedMeeting}
           onUpdateMeeting={onUpdateMeeting}
           processCompletedItems={processCompletedItems}
+          searchSelection={searchSelection}
+          onSearchSelectionUsed={onSearchSelectionUsed}
         />
       </div>
       {isRightNavVisible && (

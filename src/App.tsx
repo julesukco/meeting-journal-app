@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { Meeting, ActionItem, VirtualDuplicate } from './types';
 import { MeetingList } from './components/MeetingList';
 import { Editor } from './components/Editor';
@@ -13,6 +13,47 @@ import { MeetingView } from './components/MeetingView';
 
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { get, set } from 'idb-keyval';
+
+// Wrapper component for SearchDialog that handles navigation
+interface SearchDialogWrapperProps {
+  meetings: Meeting[];
+  currentMeeting: Meeting | null;
+  onSelect: (meeting: Meeting, matchIndex?: number, match?: { start: number; end: number }, searchTerm?: string) => void;
+  onClose: () => void;
+  onOpenAIConfig: () => void;
+}
+
+const SearchDialogWrapper: React.FC<SearchDialogWrapperProps> = ({
+  meetings,
+  currentMeeting,
+  onSelect,
+  onClose,
+  onOpenAIConfig,
+}) => {
+  const navigate = useNavigate();
+
+  const handleSelect = useCallback((
+    meeting: Meeting,
+    matchIndex?: number,
+    match?: { start: number; end: number },
+    searchTerm?: string
+  ) => {
+    // Call the original onSelect handler
+    onSelect(meeting, matchIndex, match, searchTerm);
+    // Navigate to the selected meeting
+    navigate(`/meeting/${meeting.id}`);
+  }, [onSelect, navigate]);
+
+  return (
+    <SearchDialog
+      meetings={meetings}
+      currentMeeting={currentMeeting}
+      onSelect={handleSelect}
+      onClose={onClose}
+      onOpenAIConfig={onOpenAIConfig}
+    />
+  );
+};
 
 function App() {
   const [meetings, setMeetings] = useState<Meeting[]>([]);
@@ -56,6 +97,7 @@ function App() {
   const [showSearch, setShowSearch] = useState(false);
   const [showAIConfig, setShowAIConfig] = useState(false);
   const [lastSaveTime, setLastSaveTime] = useState<number>(0);
+  const [searchSelection, setSearchSelection] = useState<{ start: number; end: number; searchTerm?: string } | null>(null);
 
   // Debounced save function
   const debouncedSave = useCallback((meetingToSave: Meeting) => {
@@ -307,8 +349,20 @@ function App() {
   }, [selectedMeeting]);
 
   // Function to handle meeting selection (works with both real and virtual meetings)
-  const handleMeetingSelect = useCallback((meeting: Meeting & { isVirtual?: boolean; virtualId?: string; originalMeetingId?: string }) => {
+  const handleMeetingSelect = useCallback((
+    meeting: Meeting & { isVirtual?: boolean; virtualId?: string; originalMeetingId?: string },
+    matchIndex?: number,
+    match?: { start: number; end: number },
+    searchTerm?: string
+  ) => {
     setShowSearch(false);
+    
+    // Store the search selection if provided (for cursor positioning)
+    if (match) {
+      setSearchSelection({ ...match, searchTerm });
+    } else {
+      setSearchSelection(null);
+    }
     
     if (meeting.isVirtual) {
       // For virtual meetings, find and select the original meeting
@@ -561,13 +615,15 @@ function App() {
               removeVirtualDuplicate={removeVirtualDuplicate}
               updateVirtualDuplicateGroup={updateVirtualDuplicateGroup}
               handleItemReorder={handleItemReorder}
+              searchSelection={searchSelection}
+              onSearchSelectionUsed={() => setSearchSelection(null)}
             />
           }
         />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       {showSearch && (
-        <SearchDialog
+        <SearchDialogWrapper
           meetings={meetings}
           currentMeeting={selectedMeeting}
           onSelect={handleMeetingSelect}
