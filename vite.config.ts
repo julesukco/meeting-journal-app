@@ -7,8 +7,19 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
   
   // The target API URL - set via VITE_AI_API_TARGET env variable
-  // or defaults to a placeholder
+  // This should be the full URL including the path (e.g., https://api.example.com/endpoint)
   const aiApiTarget = env.VITE_AI_API_TARGET || 'http://localhost:3001';
+  
+  // Parse the URL to extract origin and path
+  let targetOrigin = aiApiTarget;
+  let targetPath = '';
+  try {
+    const url = new URL(aiApiTarget);
+    targetOrigin = url.origin;
+    targetPath = url.pathname;
+  } catch {
+    // If URL parsing fails, use as-is
+  }
   
   return {
     plugins: [react()],
@@ -19,10 +30,10 @@ export default defineConfig(({ mode }) => {
       proxy: {
         // Proxy /api/ai requests to the target API server
         '/api/ai': {
-          target: aiApiTarget,
+          target: targetOrigin,
           changeOrigin: true,
-          rewrite: (path) => path.replace(/^\/api\/ai/, ''),
-          secure: false,
+          rewrite: () => targetPath || '/',
+          secure: true,
         },
       },
     },
