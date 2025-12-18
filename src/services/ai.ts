@@ -12,12 +12,31 @@ const defaultAIConfig: AIConfig = {
   systemPrompt: 'You are a helpful assistant that analyzes meeting notes and provides insights. Format your responses clearly and concisely.',
 };
 
-// Get AI config from storage
+// Get AI config from storage, with environment variable override
 export const getAIConfig = async (): Promise<AIConfig> => {
   try {
-    const config = await get(AI_CONFIG_KEY);
-    if (!config) {
-      return defaultAIConfig;
+    // Check for environment variables first (highest priority)
+    const envApiKey = import.meta.env.VITE_AI_API_KEY;
+    const envApiEndpoint = import.meta.env.VITE_AI_API_ENDPOINT;
+    
+    // Get stored config from IndexedDB
+    const storedConfig = await get(AI_CONFIG_KEY);
+    
+    // Build config with priority: env vars > stored config > defaults
+    let config: AIConfig;
+    
+    if (storedConfig) {
+      config = { ...storedConfig };
+    } else {
+      config = { ...defaultAIConfig };
+    }
+    
+    // Override with environment variables if set
+    if (envApiKey) {
+      config.apiKey = envApiKey;
+    }
+    if (envApiEndpoint) {
+      config.apiEndpoint = envApiEndpoint;
     }
     
     // Migrate: if endpoint is a full external URL, update to use proxy
@@ -36,7 +55,12 @@ export const getAIConfig = async (): Promise<AIConfig> => {
     return config;
   } catch (error) {
     console.error('Error getting AI config:', error);
-    return defaultAIConfig;
+    // Fallback to defaults, but still check env vars
+    return {
+      ...defaultAIConfig,
+      apiKey: import.meta.env.VITE_AI_API_KEY || defaultAIConfig.apiKey,
+      apiEndpoint: import.meta.env.VITE_AI_API_ENDPOINT || defaultAIConfig.apiEndpoint,
+    };
   }
 };
 
@@ -98,11 +122,11 @@ export const callAI = async (
   meetingsContext: string,
   config: AIConfig
 ): Promise<AISearchResult> => {
-  if (!config.apiKey) {
-    throw new Error('API key is not configured. Press Ctrl+, to configure AI settings.');
+  if (!config.apiKey || config.apiKey.trim() === '') {
+    throw new Error('API key is not configured. Set VITE_AI_API_KEY in your .env file or press Ctrl+, to configure in settings.');
   }
 
-  if (!config.apiEndpoint) {
+  if (!config.apiEndpoint || config.apiEndpoint.trim() === '') {
     throw new Error('API endpoint is not configured. Press Ctrl+, to configure AI settings.');
   }
 
@@ -111,20 +135,88 @@ export const callAI = async (
     : `Meeting Context:\n${meetingsContext}\n\nUser Query: ${userPrompt}`;
 
   try {
+    // Build headers - some APIs use x-api-key instead of Authorization
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    
+    // Determine which authentication header to use
+    // AWS API Gateway typically uses x-api-key, while most other APIs use Authorization Bearer
+    if (config.apiKey) {
+      // Check if endpoint looks like AWS API Gateway (contains .execute-api. or api-gateway)
+      const isAwsApiGateway = config.apiEndpoint.includes('.execute-api.') || 
+                              config.apiEndpoint.includes('api-gateway') ||
+                              config.apiEndpoint.includes('amazonaws.com');
+      
+      // If using proxy endpoint, we can't detect the actual API type
+      // Send both headers to cover different API authentication styles
+      const isProxyEndpoint = config.apiEndpoint.startsWith('/api/');
+      
+      if (isAwsApiGateway) {
+        // AWS API Gateway uses x-api-key header
+        headers['x-api-key'] = config.apiKey;
+      } else if (isProxyEndpoint) {
+        // For proxy endpoints, send both headers since we don't know which the backend expects
+        // This covers both AWS API Gateway (x-api-key) and standard APIs (Authorization Bearer)
+        headers['x-api-key'] = config.apiKey;
+        headers['Authorization'] = `Bearer ${config.apiKey}`;
+      } else {
+        // Standard OAuth-style API uses Authorization Bearer
+        headers['Authorization'] = `Bearer ${config.apiKey}`;
+      }
+    }
+
+    // Debug logging (remove in production if needed)
+    if (import.meta.env.DEV) {
+      console.log('AI API Request:', {
+        endpoint: config.apiEndpoint,
+        headers: Object.keys(headers).map(k => `${k}: ${k === 'x-api-key' || k === 'Authorization' ? '***' : headers[k]}`),
+        hasApiKey: !!config.apiKey,
+        apiKeyLength: config.apiKey?.length || 0,
+      });
+    }
+
     const response = await fetch(config.apiEndpoint, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${config.apiKey}`,
-      },
+      headers,
       body: JSON.stringify({
         prompt: fullPrompt,
       }),
     });
 
     if (!response.ok) {
+      let errorMessage = `API request failed: ${response.status} ${response.statusText}`;
+      
+      // Read response as text first (can only read body once)
       const errorText = await response.text();
-      throw new Error(`API request failed: ${response.status} ${response.statusText}. ${errorText}`);
+      
+      if (errorText) {
+        try {
+          // Try parsing the text as JSON
+          const errorData = JSON.parse(errorText);
+          if (errorData.message) {
+            errorMessage = errorData.message;
+          } else if (typeof errorData === 'string') {
+            errorMessage = errorData;
+          } else {
+            errorMessage = JSON.stringify(errorData);
+          }
+        } catch {
+          // If not JSON, use as plain text
+          errorMessage = errorText;
+        }
+      }
+      
+      // Provide helpful context for authentication errors
+      if (response.status === 401 || response.status === 403 || errorMessage.includes('Authentication') || errorMessage.includes('Token') || errorMessage.includes('Missing')) {
+        if (!config.apiKey || config.apiKey.trim() === '') {
+          errorMessage = 'API key is missing. Please configure your API key in settings (Ctrl+,).';
+        } else {
+          errorMessage = `Authentication failed: ${errorMessage}. Please check your API key in settings (Ctrl+,). The API might require a different header format.`;
+        }
+      }
+      
+      throw new Error(errorMessage);
     }
 
     const data = await response.json();

@@ -20,11 +20,18 @@ export const AIConfigDialog: React.FC<AIConfigDialogProps> = ({ onClose }) => {
   const apiEndpointRef = useRef<HTMLInputElement>(null);
   const systemPromptRef = useRef<HTMLTextAreaElement>(null);
 
+  const [usingEnvKey, setUsingEnvKey] = useState(false);
+  const [usingEnvEndpoint, setUsingEnvEndpoint] = useState(false);
+
   useEffect(() => {
     const loadConfig = async () => {
       try {
         const storedConfig = await getAIConfig();
         setConfig(storedConfig);
+        
+        // Check if environment variables are being used
+        setUsingEnvKey(!!import.meta.env.VITE_AI_API_KEY);
+        setUsingEnvEndpoint(!!import.meta.env.VITE_AI_API_ENDPOINT);
       } catch (error) {
         console.error('Error loading AI config:', error);
       } finally {
@@ -122,6 +129,11 @@ export const AIConfigDialog: React.FC<AIConfigDialogProps> = ({ onClose }) => {
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               API Key
+              {usingEnvKey && (
+                <span className="ml-2 text-xs text-blue-600 font-normal">
+                  (from VITE_AI_API_KEY env variable)
+                </span>
+              )}
             </label>
             <input
               ref={apiKeyRef}
@@ -129,18 +141,28 @@ export const AIConfigDialog: React.FC<AIConfigDialogProps> = ({ onClose }) => {
               value={config.apiKey}
               onChange={(e) => setConfig({ ...config, apiKey: e.target.value })}
               onFocus={() => setActiveField('apiKey')}
-              placeholder="Enter your API key"
+              placeholder={usingEnvKey ? "Set via VITE_AI_API_KEY in .env file" : "Enter your API key"}
+              disabled={usingEnvKey}
               className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${
                 activeField === 'apiKey' ? 'ring-2 ring-blue-500 border-blue-500' : 'border-gray-300'
-              }`}
+              } ${usingEnvKey ? 'bg-gray-100 cursor-not-allowed' : ''}`}
             />
-            <p className="mt-1 text-xs text-gray-500">Your API key will be stored locally</p>
+            <p className="mt-1 text-xs text-gray-500">
+              {usingEnvKey 
+                ? 'API key is loaded from VITE_AI_API_KEY environment variable. Set it in your .env file.'
+                : 'Your API key will be stored locally, or set VITE_AI_API_KEY in your .env file'}
+            </p>
           </div>
 
           {/* API Endpoint */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               API Endpoint
+              {usingEnvEndpoint && (
+                <span className="ml-2 text-xs text-blue-600 font-normal">
+                  (from VITE_AI_API_ENDPOINT env variable)
+                </span>
+              )}
             </label>
             <input
               ref={apiEndpointRef}
@@ -148,16 +170,18 @@ export const AIConfigDialog: React.FC<AIConfigDialogProps> = ({ onClose }) => {
               value={config.apiEndpoint}
               onChange={(e) => setConfig({ ...config, apiEndpoint: e.target.value })}
               onFocus={() => setActiveField('apiEndpoint')}
-              placeholder="/api/ai"
+              placeholder={usingEnvEndpoint ? "Set via VITE_AI_API_ENDPOINT in .env file" : "/api/ai"}
+              disabled={usingEnvEndpoint}
               className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${
                 activeField === 'apiEndpoint' ? 'ring-2 ring-blue-500 border-blue-500' : 'border-gray-300'
-              }`}
+              } ${usingEnvEndpoint ? 'bg-gray-100 cursor-not-allowed' : ''}`}
             />
             <div className="mt-1 text-xs text-gray-500 space-y-1">
               <p>The AI API endpoint URL (POST request with 'prompt' parameter)</p>
               <p className="text-blue-600">
                 💡 Use <code className="bg-gray-100 px-1 rounded">/api/ai</code> to proxy through Vite and avoid CORS issues.
                 Set the target URL via <code className="bg-gray-100 px-1 rounded">VITE_AI_API_TARGET</code> env variable.
+                {usingEnvEndpoint && ' Endpoint is set via VITE_AI_API_ENDPOINT.'}
               </p>
             </div>
           </div>
