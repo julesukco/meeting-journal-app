@@ -358,11 +358,13 @@ function App() {
     setShowSearch(false);
     
     // Store the search selection if provided (for cursor positioning)
+    // Only SET it when match is provided, don't clear it otherwise
+    // (MeetingView's URL sync effect calls this without match, we don't want to clear existing selection)
     if (match) {
+      console.log('handleMeetingSelect: Setting searchSelection:', { ...match, searchTerm });
       setSearchSelection({ ...match, searchTerm });
-    } else {
-      setSearchSelection(null);
     }
+    // Note: searchSelection is cleared by onSearchSelectionUsed callback after it's applied
     
     if (meeting.isVirtual) {
       // For virtual meetings, find and select the original meeting

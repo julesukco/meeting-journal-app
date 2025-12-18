@@ -310,96 +310,221 @@ const Editor: React.FC<EditorProps> = ({
     };
   }, []);
 
+  // Track if we've applied the current search selection to prevent double-application
+  const appliedSearchRef = useRef<string | null>(null);
+  
+  // Keep a ref to the latest searchSelection to avoid stale closure issues
+  const searchSelectionRef = useRef(searchSelection);
+  useEffect(() => {
+    console.log('Editor: searchSelection prop changed:', searchSelection);
+    searchSelectionRef.current = searchSelection;
+  }, [searchSelection]);
+  
+  // Debug: Log when Editor receives new props
+  useEffect(() => {
+    console.log('Editor mounted/updated with searchSelection:', searchSelection);
+  });
+
+  // Helper function to find and select search term in the editor
+  const applySearchSelection = useCallback((selection: { start: number; end: number; searchTerm?: string }) => {
+    if (!editor || !selection.searchTerm) {
+      return false;
+    }
+
+    // Create a unique key for this search selection
+    const selectionKey = `${selection.searchTerm}-${selection.start}`;
+    
+    // Skip if we've already applied this exact selection
+    if (appliedSearchRef.current === selectionKey) {
+      return true;
+    }
+
+    const searchTerm = selection.searchTerm;
+    console.log('Applying search selection for:', searchTerm);
+
+    try {
+      const searchTermLower = searchTerm.toLowerCase();
+      let foundFrom = -1;
+      let foundTo = -1;
+      let currentTextOffset = 0;
+      const targetOffset = selection.start;
+      
+      // Walk through the document to find text nodes
+      editor.state.doc.descendants((node, pos) => {
+        if (foundFrom !== -1) return false; // Already found, stop walking
+        
+        if (node.isText && node.text) {
+          const nodeText = node.text;
+          const nodeLower = nodeText.toLowerCase();
+          
+          // Check if search term is in this node
+          let idx = 0;
+          while ((idx = nodeLower.indexOf(searchTermLower, idx)) !== -1) {
+            const absoluteTextPos = currentTextOffset + idx;
+            // Use the first match, or one close to the target offset
+            if (foundFrom === -1 || Math.abs(absoluteTextPos - targetOffset) < Math.abs(currentTextOffset - targetOffset)) {
+              foundFrom = pos + idx;
+              foundTo = foundFrom + searchTerm.length;
+              // If this is close to our target, use it
+              if (Math.abs(absoluteTextPos - targetOffset) < 100) {
+                return false; // Stop walking
+              }
+            }
+            idx++;
+          }
+          currentTextOffset += nodeText.length;
+        }
+        return true; // Continue walking
+      });
+      
+      if (foundFrom !== -1 && foundTo !== -1) {
+        // Mark this selection as applied
+        appliedSearchRef.current = selectionKey;
+        
+        // Set selection
+        editor.chain()
+          .focus()
+          .setTextSelection({ from: foundFrom, to: foundTo })
+          .run();
+        
+        // Manually scroll to the selection after a brief delay
+        // TipTap's scrollIntoView() doesn't always work reliably
+        setTimeout(() => {
+          // Get the DOM selection and scroll to it
+          const selection = window.getSelection();
+          if (selection && selection.rangeCount > 0) {
+            const range = selection.getRangeAt(0);
+            const rect = range.getBoundingClientRect();
+            
+            // Find the editor scroll container
+            const editorElement = document.querySelector('.ProseMirror');
+            if (editorElement) {
+              const editorRect = editorElement.getBoundingClientRect();
+              const scrollContainer = editorElement.parentElement;
+              
+              if (scrollContainer) {
+                // Calculate scroll position to center the selection
+                const targetScrollTop = scrollContainer.scrollTop + (rect.top - editorRect.top) - (scrollContainer.clientHeight / 3);
+                scrollContainer.scrollTo({
+                  top: Math.max(0, targetScrollTop),
+                  behavior: 'smooth'
+                });
+              }
+            }
+          }
+        }, 50);
+          
+        console.log('Search selection applied:', { from: foundFrom, to: foundTo, searchTerm });
+        return true;
+      } else {
+        console.log('Search term not found in document:', searchTerm);
+        editor.commands.focus();
+        return false;
+      }
+    } catch (error) {
+      console.error('Error applying search selection:', error);
+      editor.commands.focus();
+      return false;
+    }
+  }, [editor]);
+
+  // Track which meeting we last loaded content for
+  const lastLoadedMeetingRef = useRef<string | null>(null);
+  
   // Only set content when the meeting changes (not on every update)
   useEffect(() => {
     if (editor && meeting) {
-      editor.commands.setContent(processCompletedItems(meeting.content));
-      // Position cursor at the end and scroll to bottom (unless we have a search selection)
-      if (!searchSelection) {
-        editor.commands.focus('end');
-        const editorElement = document.querySelector('.ProseMirror');
-        if (editorElement) {
-          editorElement.scrollTop = editorElement.scrollHeight;
-        }
+      // Check if this is actually a different meeting
+      const isDifferentMeeting = lastLoadedMeetingRef.current !== meeting.id;
+      console.log('Content loading effect: meeting', meeting.id, 'isDifferent:', isDifferentMeeting, 'searchSelectionRef:', searchSelectionRef.current);
+      
+      // Only reset applied ref if meeting actually changed
+      if (isDifferentMeeting) {
+        appliedSearchRef.current = null;
+        lastLoadedMeetingRef.current = meeting.id;
       }
+      
+      editor.commands.setContent(processCompletedItems(meeting.content));
+      
+      // After content is loaded, either apply search selection or scroll to end
+      // Use setTimeout to ensure DOM is updated
+      // Use the ref to get the LATEST searchSelection value (avoids stale closure)
+      const timeoutId = setTimeout(() => {
+        const currentSearchSelection = searchSelectionRef.current;
+        console.log('Content load timeout: checking searchSelection:', currentSearchSelection, 'appliedRef:', appliedSearchRef.current);
+        
+        // If a selection was already applied (by backup effect), don't do anything
+        if (appliedSearchRef.current) {
+          console.log('Selection already applied by backup effect, skipping');
+          return;
+        }
+        
+        if (currentSearchSelection && currentSearchSelection.searchTerm) {
+          const applied = applySearchSelection(currentSearchSelection);
+          if (applied && onSearchSelectionUsed) {
+            onSearchSelectionUsed();
+          }
+        } else {
+          console.log('No search selection found, scrolling to end');
+          editor.commands.focus('end');
+          const editorElement = document.querySelector('.ProseMirror');
+          if (editorElement) {
+            editorElement.scrollTop = editorElement.scrollHeight;
+          }
+        }
+      }, 250);
+      
+      // Cleanup: cancel timeout if effect re-runs
+      return () => {
+        clearTimeout(timeoutId);
+      };
     } else if (editor && !meeting) {
       editor.commands.setContent('');
+      return undefined;
     }
+    return undefined;
     // Only run when meeting id changes
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editor, meeting?.id]);
 
-  // Handle search selection - find and highlight the search term in the editor
+  // Backup effect: Watch for searchSelection changes directly
+  // This handles cases where searchSelection is set after content is already loaded (same meeting search)
+  // We use a ref to track the last meeting id to detect when we're navigating vs. same-meeting search
+  const lastMeetingIdRef = useRef<string | null>(null);
+  
   useEffect(() => {
-    if (editor && searchSelection && searchSelection.searchTerm && meeting) {
-      // Wait a moment for the content to be fully loaded
-      const timer = setTimeout(() => {
-        const searchTerm = searchSelection.searchTerm;
-        if (!searchTerm) return;
-
-        // Get the document text content
-        const docText = editor.state.doc.textContent;
-        
-        // Find the search term in the document
-        const searchTermLower = searchTerm.toLowerCase();
-        let position = -1;
-        let currentPos = 0;
-        
-        // We need to find the Nth occurrence that matches our search result
-        // Since the search was done on stripped HTML, we search in text content
-        const textLower = docText.toLowerCase();
-        
-        // Find all occurrences and use the position hint from searchSelection
-        let matchCount = 0;
-        let searchIdx = 0;
-        while ((searchIdx = textLower.indexOf(searchTermLower, searchIdx)) !== -1) {
-          // Check if this is approximately the match we want (within a reasonable range)
-          // The position in searchSelection is from stripped HTML, so it might not match exactly
-          if (Math.abs(searchIdx - searchSelection.start) < 50 || matchCount === 0) {
-            position = searchIdx;
-            break;
-          }
-          matchCount++;
-          searchIdx += 1;
-        }
-        
-        // If we found the position, convert text position to ProseMirror position
-        if (position !== -1) {
-          // Find the actual ProseMirror position by walking the document
-          let pmPos = 1; // ProseMirror positions start at 1
-          let textPos = 0;
-          
-          editor.state.doc.descendants((node, pos) => {
-            if (node.isText && textPos <= position) {
-              const nodeText = node.text || '';
-              if (textPos + nodeText.length > position) {
-                // The search term starts in this node
-                pmPos = pos + (position - textPos);
-                return false; // Stop walking
-              }
-              textPos += nodeText.length;
-            }
-            return true; // Continue walking
-          });
-          
-          // Set selection and scroll into view
-          const endPos = pmPos + searchTerm.length;
-          editor.chain()
-            .focus()
-            .setTextSelection({ from: pmPos, to: endPos })
-            .scrollIntoView()
-            .run();
-        }
-        
-        // Clear the search selection after using it
-        if (onSearchSelectionUsed) {
-          onSearchSelectionUsed();
-        }
-      }, 100);
-      
-      return () => clearTimeout(timer);
+    if (!editor || !searchSelection || !searchSelection.searchTerm || !meeting) {
+      return;
     }
-  }, [editor, searchSelection, meeting?.id, onSearchSelectionUsed]);
+    
+    // Check if we've already applied this selection
+    const selectionKey = `${searchSelection.searchTerm}-${searchSelection.start}`;
+    if (appliedSearchRef.current === selectionKey) {
+      console.log('Backup effect: Already applied, skipping');
+      return;
+    }
+    
+    // Check if meeting changed - if so, let the content loading effect handle it
+    const isSameMeeting = lastMeetingIdRef.current === meeting.id;
+    lastMeetingIdRef.current = meeting.id;
+    
+    if (!isSameMeeting) {
+      console.log('Backup effect: Meeting changed, deferring to content loading effect');
+      return; // Content loading effect will handle it
+    }
+    
+    console.log('Backup effect: Same meeting search, applying:', searchSelection.searchTerm);
+    
+    // Apply the selection with a delay to ensure content is ready
+    const timer = setTimeout(() => {
+      const applied = applySearchSelection(searchSelection);
+      if (applied && onSearchSelectionUsed) {
+        onSearchSelectionUsed();
+      }
+    }, 100);
+    
+    return () => clearTimeout(timer);
+  }, [editor, searchSelection, meeting, applySearchSelection, onSearchSelectionUsed]);
 
   // Add keyboard shortcut for task list and font size
   useEffect(() => {
