@@ -17,7 +17,7 @@ import HorizontalRule from '@tiptap/extension-horizontal-rule';
 import { Meeting } from '../types';
 import { marked } from 'marked';
 import '../styles/editor.css';
-import { Extension } from '@tiptap/core';
+import { Extension, InputRule } from '@tiptap/core';
 import { Node as ProseMirrorNode } from 'prosemirror-model';
 import { NextTimeNotes } from './NextTimeNotes';
 
@@ -106,6 +106,36 @@ const FontSize = Extension.create({
   },
 });
 
+// Custom extension for .dd date shortcut
+const DateShortcut = Extension.create({
+  name: 'dateShortcut',
+
+  addInputRules() {
+    return [
+      new InputRule({
+        find: /\.dd$/,
+        handler: ({ state, range, chain }) => {
+          const now = new Date();
+          const dateStr = `${now.getMonth() + 1}/${now.getDate()}/${String(now.getFullYear()).slice(2)}`;
+
+          // Delete the ".dd" text and insert bold date with new line
+          chain()
+            .deleteRange(range)
+            .insertContent([
+              {
+                type: 'text',
+                marks: [{ type: 'bold' }],
+                text: dateStr,
+              },
+            ])
+            .insertContent({ type: 'hardBreak' })
+            .run();
+        },
+      }),
+    ];
+  },
+});
+
 const Editor: React.FC<EditorProps> = ({ 
   meeting, 
   onUpdateMeeting,
@@ -123,6 +153,7 @@ const Editor: React.FC<EditorProps> = ({
       TaskList,
       TaskItem.configure({ nested: true }),
       TaskListTabIndent,
+      DateShortcut,
       TextStyle,
       FontSize,
       Image.configure({
