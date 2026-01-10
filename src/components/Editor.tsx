@@ -503,15 +503,36 @@ const Editor: React.FC<EditorProps> = ({
           });
           
           // The position after the last content block should be the start of the next line
-          // We need to add 1 to get inside the next paragraph
-          const targetPos = Math.min(lastContentBlockEnd + 1, doc.content.size);
+          // We want to position cursor TWO lines down (with a blank line between content and cursor)
+          console.log('Last content ends at:', lastContentBlockEnd, 'doc size:', doc.content.size);
           
-          console.log('Last content ends at:', lastContentBlockEnd, 'targeting pos:', targetPos, 'doc size:', doc.content.size);
+          // Count how many empty paragraphs already exist after the last content
+          let emptyParagraphsAtEnd = 0;
+          doc.descendants((node, pos) => {
+            if (pos >= lastContentBlockEnd && node.isBlock) {
+              if (!node.textContent || node.textContent.trim().length === 0) {
+                emptyParagraphsAtEnd++;
+              }
+            }
+            return true;
+          });
           
-          // Set cursor at the target position
+          console.log('Empty paragraphs at end:', emptyParagraphsAtEnd);
+          
           try {
-            editor.commands.setTextSelection(targetPos);
-            editor.commands.focus();
+            // Go to the end of the document first
+            editor.commands.focus('end');
+            
+            // We need 2 empty lines total (one blank line + cursor line)
+            // Only insert what's needed to reach 2
+            const neededParagraphs = Math.max(0, 2 - emptyParagraphsAtEnd);
+            if (neededParagraphs > 0) {
+              const paragraphsToInsert = '<p></p>'.repeat(neededParagraphs);
+              editor.chain()
+                .insertContent(paragraphsToInsert)
+                .focus('end')
+                .run();
+            }
           } catch (e) {
             console.log('Failed to set position, falling back to end:', e);
             // Fallback to end if position is invalid
