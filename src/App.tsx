@@ -321,8 +321,8 @@ function App() {
         return;
       }
 
-      // Backslash or forward slash: Show search dialog
-      if (e.key === '\\' || e.key === '/') {
+      // Backslash: Show search dialog
+      if (e.key === '\\') {
         e.preventDefault();
         setShowSearch(true);
       }
