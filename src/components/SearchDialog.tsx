@@ -49,6 +49,7 @@ export const SearchDialog: React.FC<SearchDialogProps> = ({ meetings, currentMee
   const inputRef = useRef<HTMLInputElement>(null);
   const aiInputRef = useRef<HTMLTextAreaElement>(null);
   const resultRef = useRef<HTMLDivElement>(null);
+  const meetingsListRef = useRef<HTMLDivElement>(null);
 
   // Load AI config on mount
   useEffect(() => {
@@ -124,6 +125,16 @@ export const SearchDialog: React.FC<SearchDialogProps> = ({ meetings, currentMee
   useEffect(() => {
     setSelectedMatchIndex(0);
   }, [selectedMeetingIndex]);
+
+  // Scroll selected meeting into view when navigating with keyboard
+  useEffect(() => {
+    if (meetingsListRef.current && matchingMeetings.length > 0) {
+      const selectedElement = meetingsListRef.current.children[selectedMeetingIndex] as HTMLElement;
+      if (selectedElement) {
+        selectedElement.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      }
+    }
+  }, [selectedMeetingIndex, matchingMeetings.length]);
 
   // Handle AI search - only uses the current meeting context
   const handleAISearch = useCallback(async () => {
@@ -322,7 +333,7 @@ export const SearchDialog: React.FC<SearchDialogProps> = ({ meetings, currentMee
             </div>
             <div className="flex flex-1 min-h-0 overflow-hidden">
               {/* Meetings list */}
-              <div className="w-1/3 border-r max-h-96 overflow-y-auto">
+              <div ref={meetingsListRef} className="w-1/3 border-r max-h-96 overflow-y-auto">
                 {matchingMeetings.length === 0 && (
                   <div className="px-4 py-2 text-gray-500">No meetings found</div>
                 )}
