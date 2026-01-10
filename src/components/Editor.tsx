@@ -934,6 +934,12 @@ const Editor: React.FC<EditorProps> = ({
                   icon={<span>-Col</span>}
                   title="Delete Column (Cmd/Ctrl + Shift + C)"
                 />
+                <ToolbarButton
+                  onClick={() => editor?.chain().focus().deleteTable().run()}
+                  label="Delete Table"
+                  icon={<span>⊗ Table</span>}
+                  title="Delete Table"
+                />
               </>
             )}
             <ToolbarButton

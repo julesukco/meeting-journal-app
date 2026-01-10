@@ -210,10 +210,14 @@ export const SearchDialog: React.FC<SearchDialogProps> = ({ meetings, currentMee
       case 'Enter':
         e.preventDefault();
         if (selectedMeeting && matchSnippets[selectedMatchIndex]) {
-          onSelect(selectedMeeting, selectedMatchIndex, {
-            start: matchSnippets[selectedMatchIndex].start,
-            end: matchSnippets[selectedMatchIndex].end,
-          }, searchTerm);
+          // Close dialog first, then navigate to selection
+          onClose();
+          setTimeout(() => {
+            onSelect(selectedMeeting, selectedMatchIndex, {
+              start: matchSnippets[selectedMatchIndex].start,
+              end: matchSnippets[selectedMatchIndex].end,
+            }, searchTerm);
+          }, 50);
         }
         break;
       case 'Tab':
@@ -345,7 +349,11 @@ export const SearchDialog: React.FC<SearchDialogProps> = ({ meetings, currentMee
                       key={idx}
                       className={`px-4 py-2 cursor-pointer ${idx === selectedMatchIndex ? 'bg-blue-100' : 'hover:bg-gray-50'}`}
                       onClick={() => {
-                        onSelect(selectedMeeting, idx, { start: snippet.start, end: snippet.end }, searchTerm);
+                        // Close dialog first, then navigate to selection
+                        onClose();
+                        setTimeout(() => {
+                          onSelect(selectedMeeting, idx, { start: snippet.start, end: snippet.end }, searchTerm);
+                        }, 50);
                       }}
                     >
                       <span className="text-gray-400 font-mono">{snippet.before}</span>
