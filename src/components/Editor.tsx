@@ -502,36 +502,74 @@ const Editor: React.FC<EditorProps> = ({
             return true; // Continue walking to find the very last one
           });
           
-          // The position after the last content block should be the start of the next line
-          // We want to position cursor TWO lines down (with a blank line between content and cursor)
+          // We want to position cursor TWO lines down from last content (with a blank line between)
+          // In ProseMirror, each empty paragraph takes 2 positions (open + close tag)
+          // So to go 2 lines down, we need to add 2 * 2 = 4 positions, then +1 to be inside the paragraph
+          // Target: lastContentBlockEnd -> first empty para (pos +1) -> second empty para (pos +3) -> inside it (+4 or +5)
+          
+          // Calculate target position: 2 paragraphs after last content = lastContentBlockEnd + 4 (to be inside 2nd para)
+          // But we need to ensure those paragraphs exist first
+          
           console.log('Last content ends at:', lastContentBlockEnd, 'doc size:', doc.content.size);
           
-          // Count how many empty paragraphs already exist after the last content
-          let emptyParagraphsAtEnd = 0;
+          // Count empty paragraphs immediately after last content
+          let emptyParagraphsAfterContent = 0;
+          let positionOfSecondEmptyPara = lastContentBlockEnd;
+          
           doc.descendants((node, pos) => {
             if (pos >= lastContentBlockEnd && node.isBlock) {
               if (!node.textContent || node.textContent.trim().length === 0) {
-                emptyParagraphsAtEnd++;
+                emptyParagraphsAfterContent++;
+                if (emptyParagraphsAfterContent === 2) {
+                  // This is the 2nd empty paragraph - we want cursor here
+                  positionOfSecondEmptyPara = pos + 1; // +1 to be inside the paragraph
+                }
+              } else {
+                // Found content after the "last content" - stop counting
+                return false;
               }
             }
             return true;
           });
           
-          console.log('Empty paragraphs at end:', emptyParagraphsAtEnd);
+          console.log('Empty paragraphs after content:', emptyParagraphsAfterContent, 'position of 2nd:', positionOfSecondEmptyPara);
           
           try {
-            // Go to the end of the document first
-            editor.commands.focus('end');
-            
-            // We need 2 empty lines total (one blank line + cursor line)
-            // Only insert what's needed to reach 2
-            const neededParagraphs = Math.max(0, 2 - emptyParagraphsAtEnd);
-            if (neededParagraphs > 0) {
+            if (emptyParagraphsAfterContent >= 2) {
+              // Already have 2 empty paragraphs, just position cursor in the 2nd one
+              editor.commands.setTextSelection(positionOfSecondEmptyPara);
+              editor.commands.focus();
+            } else {
+              // Need to add paragraphs to reach 2 total
+              // First, position at the end of last content block
+              const insertPos = Math.min(lastContentBlockEnd, doc.content.size);
+              editor.commands.setTextSelection(insertPos);
+              
+              // Insert the needed empty paragraphs
+              const neededParagraphs = 2 - emptyParagraphsAfterContent;
               const paragraphsToInsert = '<p></p>'.repeat(neededParagraphs);
               editor.chain()
                 .insertContent(paragraphsToInsert)
-                .focus('end')
                 .run();
+              
+              // Now position cursor in the 2nd empty paragraph (the last one we're on after insert)
+              editor.commands.focus('end');
+              
+              // Re-find the correct position after insertion
+              const newDoc = editor.state.doc;
+              let newLastContentBlockEnd = 1;
+              newDoc.descendants((node, pos) => {
+                if (node.isBlock && node.textContent && node.textContent.trim().length > 0) {
+                  newLastContentBlockEnd = pos + node.nodeSize;
+                }
+                return true;
+              });
+              
+              // Position in the 2nd empty paragraph after content
+              // Each empty para is 2 positions, so 2nd para starts at +2, inside it is +3
+              const targetPos = Math.min(newLastContentBlockEnd + 3, newDoc.content.size);
+              editor.commands.setTextSelection(targetPos);
+              editor.commands.focus();
             }
           } catch (e) {
             console.log('Failed to set position, falling back to end:', e);
