@@ -387,33 +387,22 @@ const Editor: React.FC<EditorProps> = ({
           .setTextSelection({ from: foundFrom, to: foundTo })
           .run();
         
-        // Manually scroll to the selection after a brief delay
-        // TipTap's scrollIntoView() doesn't always work reliably
+        // Scroll to center the selection after a brief delay for DOM update
         setTimeout(() => {
-          // Get the DOM selection and scroll to it
           const selection = window.getSelection();
           if (selection && selection.rangeCount > 0) {
             const range = selection.getRangeAt(0);
-            const rect = range.getBoundingClientRect();
-            
-            // Find the editor scroll container
-            const editorElement = document.querySelector('.ProseMirror');
-            if (editorElement) {
-              const editorRect = editorElement.getBoundingClientRect();
-              const scrollContainer = editorElement.parentElement;
-              
-              if (scrollContainer) {
-                // Calculate scroll position to put the selection near the top (with some padding)
-                // Using 1/4 of viewport height from top, plus extra 100px margin for any overlays
-                const targetScrollTop = scrollContainer.scrollTop + (rect.top - editorRect.top) - 150;
-                scrollContainer.scrollTo({
-                  top: Math.max(0, targetScrollTop),
-                  behavior: 'smooth'
-                });
-              }
+            // Get the parent element of the text node
+            const startContainer = range.startContainer;
+            const element = startContainer.nodeType === Node.TEXT_NODE
+              ? startContainer.parentElement
+              : startContainer as Element;
+
+            if (element && element instanceof HTMLElement) {
+              element.scrollIntoView({ behavior: 'smooth', block: 'center' });
             }
           }
-        }, 50);
+        }, 100);
           
         console.log('Search selection applied:', { from: foundFrom, to: foundTo, searchTerm });
         return true;
