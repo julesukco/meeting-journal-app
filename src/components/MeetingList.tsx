@@ -16,6 +16,7 @@ interface MeetingListProps {
   removeVirtualDuplicate?: (duplicateId: string) => void;
   updateVirtualDuplicateGroup?: (duplicateId: string, newGroup: string, newSortOrder?: number) => void;
   handleItemReorder?: (draggedId: string, newGroup: string, newSortOrder: number) => void;
+  handleBatchItemReorder?: (updates: Array<{id: string, group: string, sortOrder: number}>) => void;
 }
 
 export function MeetingList({
@@ -30,6 +31,7 @@ export function MeetingList({
   removeVirtualDuplicate,
   updateVirtualDuplicateGroup,
   handleItemReorder,
+  handleBatchItemReorder,
 }: MeetingListProps) {
   const EXPANDED_KEY = 'expandedMeetingGroups';
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(() => {
@@ -216,95 +218,55 @@ export function MeetingList({
   // Handle drag end for meetings
   const onDragEnd = useCallback((result: DropResult) => {
     const { source, destination, draggableId } = result;
-    if (!destination || !handleItemReorder) return;
-    
+    if (!destination || !handleBatchItemReorder) return;
+
     const [sourceGroup, destGroup] = [source.droppableId, destination.droppableId];
     if (sourceGroup === destGroup && source.index === destination.index) return;
 
-    // Get the current items in the destination group, excluding the dragged item if it came from the same group
-    let currentGroupItems = groupedMeetings[destGroup] || [];
-    
-    // If moving within the same group, remove the dragged item from current items for accurate positioning
+    // Get the current items in the destination group
+    const currentGroupItems = [...(groupedMeetings[destGroup] || [])];
+
+    // Find the dragged item
+    const allItems = Object.values(groupedMeetings).flat();
+    const draggedItem = allItems.find(item => item.id === draggableId);
+    if (!draggedItem) return;
+
+    // Build the new order for the destination group
+    let newOrder: typeof currentGroupItems;
+
     if (sourceGroup === destGroup) {
-      currentGroupItems = currentGroupItems.filter(item => item.id !== draggableId);
-    }
-    
-    const destIndex = destination.index;
-    
-    // Calculate sort order that works with existing items, avoiding conflicts
-    let newSortOrder: number;
-    
-    if (destIndex === 0) {
-      // Moving to start - find the smallest sort order and go before it
-      const existingSorts = currentGroupItems.map(item => item.sortOrder || item.createdAt);
-      
-      // Handle empty array case
-      if (existingSorts.length === 0) {
-        newSortOrder = Date.now();
-      } else {
-        const minSort = Math.min(...existingSorts);
-        
-        // For virtual meetings with timestamp-based sort orders, use appropriate decrement
-        if (draggableId.startsWith('virtual-') && minSort > 100000) {
-          newSortOrder = minSort - Math.max(1000, Math.floor(minSort * 0.001));
-        } else {
-          newSortOrder = minSort - 1000;
-        }
-      }
-    } else if (destIndex >= currentGroupItems.length) {
-      // Moving to end - find the largest sort order and go after it
-      const existingSorts = currentGroupItems.map(item => item.sortOrder || item.createdAt);
-      
-      // Handle empty array case
-      if (existingSorts.length === 0) {
-        newSortOrder = Date.now();
-      } else {
-        const maxSort = Math.max(...existingSorts);
-        
-        // For virtual meetings with timestamp-based sort orders, use appropriate increment
-        if (draggableId.startsWith('virtual-') && maxSort > 100000) {
-          newSortOrder = maxSort + Math.max(1000, Math.floor(maxSort * 0.001));
-        } else {
-          newSortOrder = maxSort + 1000;
-        }
-      }
+      // Moving within same group - remove from old position, insert at new
+      const filtered = currentGroupItems.filter(item => item.id !== draggableId);
+      newOrder = [
+        ...filtered.slice(0, destination.index),
+        draggedItem,
+        ...filtered.slice(destination.index)
+      ];
     } else {
-      // Moving between items - use the actual adjacent items' sort orders
-      const prevItem = currentGroupItems[destIndex - 1];
-      const nextItem = currentGroupItems[destIndex];
-      
-      const prevSort = prevItem ? (prevItem.sortOrder || prevItem.createdAt) : 0;
-      const nextSort = nextItem ? (nextItem.sortOrder || nextItem.createdAt) : Date.now() + 1000;
-      
-      // Handle edge cases where sort orders are the same or invalid
-      if (prevSort >= nextSort) {
-        // If items have same sort order or are out of order, use a simple increment
-        newSortOrder = prevSort + 1;
-      } else {
-        // Calculate midpoint for normal sort orders
-        const gap = nextSort - prevSort;
-        
-        if (gap <= 1) {
-          // If gap is too small, use simple increment
-          newSortOrder = prevSort + 1;
-        } else if (gap <= 10) {
-          // For small gaps, use integer midpoint
-          newSortOrder = Math.floor(prevSort + gap / 2);
-        } else {
-          // For larger gaps, use a more precise calculation but ensure integer result
-          newSortOrder = Math.floor(prevSort + gap / 2);
-        }
-      }
+      // Moving to different group - just insert at destination
+      newOrder = [
+        ...currentGroupItems.slice(0, destination.index),
+        draggedItem,
+        ...currentGroupItems.slice(destination.index)
+      ];
     }
 
-    // Ensure the sort order is an integer to avoid precision issues
-    newSortOrder = Math.floor(newSortOrder);
-
-    // Handle the reorder through the unified system
+    // Assign clean sequential sort orders (1000, 2000, 3000, etc.)
+    // This avoids all the edge cases with mixed sortOrder/createdAt values
+    const baseSort = 1000;
+    const sortIncrement = 1000;
     const newGroup = destGroup === 'ungrouped' ? '' : destGroup;
-    
-    handleItemReorder(draggableId, newGroup, newSortOrder);
-  }, [groupedMeetings, handleItemReorder]);
+
+    // Build batch updates for all items in the group
+    const updates = newOrder.map((item, index) => ({
+      id: item.id,
+      group: newGroup,
+      sortOrder: baseSort + (index * sortIncrement)
+    }));
+
+    // Update all items atomically
+    handleBatchItemReorder(updates);
+  }, [groupedMeetings, handleBatchItemReorder]);
 
   const [editingMeetingId, setEditingMeetingId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState('');

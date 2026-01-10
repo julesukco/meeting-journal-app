@@ -215,7 +215,7 @@ function App() {
   // Function to handle reordering of all items (meetings and virtual duplicates)
   const handleItemReorder = useCallback(async (draggedId: string, newGroup: string, newSortOrder: number) => {
     const isVirtual = draggedId.startsWith('virtual-');
-    
+
     if (isVirtual) {
       updateVirtualDuplicateGroup(draggedId, newGroup, newSortOrder);
     } else {
@@ -226,25 +226,69 @@ function App() {
         sortOrder: newSortOrder,
         updatedAt: Date.now()
       };
-      
+
       // Update state immediately for UI responsiveness
-      setMeetings(prev => prev.map(m => 
-        m.id === draggedId 
+      setMeetings(prev => prev.map(m =>
+        m.id === draggedId
           ? { ...m, ...updatedMeeting }
           : m
       ));
-      
+
       // Save to IndexedDB immediately to prevent race conditions
       try {
         const currentMeetings = await getMeetings();
-        const updatedMeetings = currentMeetings.map(m => 
-          m.id === draggedId 
+        const updatedMeetings = currentMeetings.map(m =>
+          m.id === draggedId
             ? { ...m, ...updatedMeeting }
             : m
         );
         await saveMeetings(updatedMeetings);
       } catch (error) {
         console.error('Error saving sort order to IndexedDB:', error);
+      }
+    }
+  }, [updateVirtualDuplicateGroup]);
+
+  // Batch version of handleItemReorder for updating multiple items at once
+  const handleBatchItemReorder = useCallback(async (updates: Array<{id: string, group: string, sortOrder: number}>) => {
+    const now = Date.now();
+
+    // Separate virtual and real meeting updates
+    const virtualUpdates = updates.filter(u => u.id.startsWith('virtual-'));
+    const meetingUpdates = updates.filter(u => !u.id.startsWith('virtual-'));
+
+    // Update virtual duplicates
+    virtualUpdates.forEach(u => {
+      updateVirtualDuplicateGroup(u.id, u.group, u.sortOrder);
+    });
+
+    // Update real meetings in batch
+    if (meetingUpdates.length > 0) {
+      // Create a map for quick lookup
+      const updateMap = new Map(meetingUpdates.map(u => [u.id, u]));
+
+      // Update state immediately for UI responsiveness
+      setMeetings(prev => prev.map(m => {
+        const update = updateMap.get(m.id);
+        if (update) {
+          return { ...m, group: update.group || undefined, sortOrder: update.sortOrder, updatedAt: now };
+        }
+        return m;
+      }));
+
+      // Save to IndexedDB
+      try {
+        const currentMeetings = await getMeetings();
+        const updatedMeetings = currentMeetings.map(m => {
+          const update = updateMap.get(m.id);
+          if (update) {
+            return { ...m, group: update.group || undefined, sortOrder: update.sortOrder, updatedAt: now };
+          }
+          return m;
+        });
+        await saveMeetings(updatedMeetings);
+      } catch (error) {
+        console.error('Error saving batch sort order to IndexedDB:', error);
       }
     }
   }, [updateVirtualDuplicateGroup]);
@@ -617,6 +661,7 @@ function App() {
               removeVirtualDuplicate={removeVirtualDuplicate}
               updateVirtualDuplicateGroup={updateVirtualDuplicateGroup}
               handleItemReorder={handleItemReorder}
+              handleBatchItemReorder={handleBatchItemReorder}
               searchSelection={searchSelection}
               onSearchSelectionUsed={() => setSearchSelection(null)}
             />
