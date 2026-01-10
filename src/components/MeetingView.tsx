@@ -25,6 +25,7 @@ interface MeetingViewProps {
   removeVirtualDuplicate: (duplicateId: string) => void;
   updateVirtualDuplicateGroup: (duplicateId: string, newGroup: string, newSortOrder?: number) => void;
   handleItemReorder: (draggedId: string, newGroup: string, newSortOrder: number) => void;
+  handleBatchItemReorder: (updates: Array<{id: string, group: string, sortOrder: number}>) => void;
   searchSelection?: { start: number; end: number; searchTerm?: string } | null;
   onSearchSelectionUsed?: () => void;
 }
@@ -47,6 +48,7 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
   removeVirtualDuplicate,
   updateVirtualDuplicateGroup,
   handleItemReorder,
+  handleBatchItemReorder,
   searchSelection,
   onSearchSelectionUsed,
 }) => {
@@ -116,6 +118,7 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
             removeVirtualDuplicate={removeVirtualDuplicate}
             updateVirtualDuplicateGroup={updateVirtualDuplicateGroup}
             handleItemReorder={handleItemReorder}
+            handleBatchItemReorder={handleBatchItemReorder}
           />
         </div>
       )}

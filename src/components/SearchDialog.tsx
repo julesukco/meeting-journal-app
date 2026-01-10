@@ -10,7 +10,76 @@ interface SearchDialogProps {
   onOpenAIConfig: () => void;
 }
 
-type SearchMode = 'basic' | 'ai';
+type SearchMode = 'basic' | 'ai' | 'talkingPoints';
+
+// Extract date-separated sessions from meeting content
+function extractSessions(htmlContent: string): Array<{date: string, content: string}> {
+  const stripped = stripHtmlTags(htmlContent);
+  const lines = stripped.split('\n');
+  const sessions: Array<{date: string, content: string}> = [];
+
+  // Match dates like 1/5/26, 01/05/2026, etc.
+  const datePattern = /^\d{1,2}\/\d{1,2}\/\d{2,4}$/;
+
+  let currentDate = '';
+  let currentContent: string[] = [];
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (datePattern.test(trimmed)) {
+      // Save previous session if exists
+      if (currentDate && currentContent.length > 0) {
+        sessions.push({ date: currentDate, content: currentContent.join('\n') });
+      }
+      currentDate = trimmed;
+      currentContent = [];
+    } else if (currentDate) {
+      currentContent.push(line);
+    }
+  }
+
+  // Don't forget last session
+  if (currentDate && currentContent.length > 0) {
+    sessions.push({ date: currentDate, content: currentContent.join('\n') });
+  }
+
+  return sessions;
+}
+
+// Build AI prompt for talking points generation
+function buildTalkingPointsPrompt(meeting: Meeting, sessions: Array<{date: string, content: string}>): string {
+  const recentSessions = sessions.slice(-3).reverse(); // Last 3, most recent first
+
+  let prompt = `You are preparing for a recurring meeting titled "${meeting.title}".
+Based on the recent sessions below, generate 5-7 talking points for the upcoming meeting.
+
+Focus on:
+- Unresolved items or open questions from recent discussions
+- Follow-ups that need status updates
+- Decisions that may need revisiting
+- Key topics that were discussed recently
+
+`;
+
+  if (meeting.attendees?.length > 0) {
+    prompt += `Attendees: ${meeting.attendees.join(', ')}\n\n`;
+  }
+
+  prompt += `=== Recent Sessions (most recent first) ===\n\n`;
+
+  if (recentSessions.length === 0) {
+    // Fallback: use entire content as one session
+    prompt += `--- Full Meeting Notes ---\n${stripHtmlTags(meeting.content).trim()}\n\n`;
+  } else {
+    for (const session of recentSessions) {
+      prompt += `--- ${session.date} ---\n${session.content.trim()}\n\n`;
+    }
+  }
+
+  prompt += `Generate concise, actionable talking points for the next session:`;
+
+  return prompt;
+}
 
 function getMatches(text: string, search: string) {
   if (!search) return [];
@@ -45,10 +114,17 @@ export const SearchDialog: React.FC<SearchDialogProps> = ({ meetings, currentMee
   const [aiResult, setAiResult] = useState<AISearchResult | null>(null);
   const [aiError, setAiError] = useState<string | null>(null);
   const [aiConfig, setAiConfig] = useState<AIConfig | null>(null);
+
+  // Talking Points state
+  const [talkingPointsLoading, setTalkingPointsLoading] = useState(false);
+  const [talkingPointsResult, setTalkingPointsResult] = useState<AISearchResult | null>(null);
+  const [talkingPointsError, setTalkingPointsError] = useState<string | null>(null);
+  const [talkingPointsGenerated, setTalkingPointsGenerated] = useState(false);
   
   const inputRef = useRef<HTMLInputElement>(null);
   const aiInputRef = useRef<HTMLTextAreaElement>(null);
   const resultRef = useRef<HTMLDivElement>(null);
+  const talkingPointsRef = useRef<HTMLDivElement>(null);
   const meetingsListRef = useRef<HTMLDivElement>(null);
 
   // Load AI config on mount
@@ -116,9 +192,10 @@ export const SearchDialog: React.FC<SearchDialogProps> = ({ meetings, currentMee
   useEffect(() => {
     if (mode === 'basic') {
       inputRef.current?.focus();
-    } else {
+    } else if (mode === 'ai') {
       aiInputRef.current?.focus();
     }
+    // talkingPoints mode auto-focuses on results when they load
   }, [mode]);
 
   // Reset match index when meeting changes
@@ -168,6 +245,57 @@ export const SearchDialog: React.FC<SearchDialogProps> = ({ meetings, currentMee
     }
   }, [aiPrompt, aiConfig, currentMeeting]);
 
+  // Generate talking points for the current meeting
+  const generateTalkingPoints = useCallback(async () => {
+    if (!aiConfig) {
+      setTalkingPointsError('AI configuration not loaded. Please try again.');
+      return;
+    }
+
+    if (!currentMeeting) {
+      setTalkingPointsError('No meeting selected. Please select a meeting first.');
+      return;
+    }
+
+    setTalkingPointsLoading(true);
+    setTalkingPointsError(null);
+    setTalkingPointsResult(null);
+
+    try {
+      const sessions = extractSessions(currentMeeting.content);
+      const prompt = buildTalkingPointsPrompt(currentMeeting, sessions);
+      const result = await callAI(prompt, '', aiConfig);
+      setTalkingPointsResult(result);
+      setTalkingPointsGenerated(true);
+      setTimeout(() => talkingPointsRef.current?.focus(), 100);
+    } catch (error) {
+      setTalkingPointsError(error instanceof Error ? error.message : 'An error occurred');
+    } finally {
+      setTalkingPointsLoading(false);
+    }
+  }, [aiConfig, currentMeeting]);
+
+  // Auto-generate talking points when switching to that mode
+  useEffect(() => {
+    if (mode === 'talkingPoints' && currentMeeting && !talkingPointsGenerated && !talkingPointsLoading) {
+      generateTalkingPoints();
+    }
+  }, [mode, currentMeeting, talkingPointsGenerated, talkingPointsLoading, generateTalkingPoints]);
+
+  // Reset talking points when meeting changes
+  useEffect(() => {
+    setTalkingPointsResult(null);
+    setTalkingPointsError(null);
+    setTalkingPointsGenerated(false);
+  }, [currentMeeting?.id]);
+
+  // Copy talking points to clipboard
+  const copyTalkingPoints = useCallback(() => {
+    if (talkingPointsResult) {
+      navigator.clipboard.writeText(talkingPointsResult.response);
+    }
+  }, [talkingPointsResult]);
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     // Global shortcuts (work in both modes)
     switch (e.key) {
@@ -185,18 +313,20 @@ export const SearchDialog: React.FC<SearchDialogProps> = ({ meetings, currentMee
         break;
     }
 
-    // Tab to switch modes
+    // Ctrl+Tab to switch modes (cycles through all three)
     if (e.key === 'Tab' && !e.shiftKey && (e.ctrlKey || e.metaKey)) {
       e.preventDefault();
-      setMode(mode === 'basic' ? 'ai' : 'basic');
+      setMode(mode === 'basic' ? 'ai' : mode === 'ai' ? 'talkingPoints' : 'basic');
       return;
     }
 
     // Mode-specific key handling
     if (mode === 'basic') {
       handleBasicModeKeyDown(e);
-    } else {
+    } else if (mode === 'ai') {
       handleAIModeKeyDown(e);
+    } else {
+      handleTalkingPointsModeKeyDown(e);
     }
   };
 
@@ -251,10 +381,10 @@ export const SearchDialog: React.FC<SearchDialogProps> = ({ meetings, currentMee
         }
         break;
       case 'Tab':
-        // Regular Tab switches back to basic mode
+        // Regular Tab switches to talking points mode
         if (!e.shiftKey) {
           e.preventDefault();
-          setMode('basic');
+          setMode('talkingPoints');
         }
         break;
       case 'ArrowUp':
@@ -280,8 +410,39 @@ export const SearchDialog: React.FC<SearchDialogProps> = ({ meetings, currentMee
     }
   };
 
+  const handleTalkingPointsModeKeyDown = (e: React.KeyboardEvent) => {
+    switch (e.key) {
+      case 'Tab':
+        // Regular Tab switches back to basic mode
+        if (!e.shiftKey) {
+          e.preventDefault();
+          setMode('basic');
+        }
+        break;
+      case 'r':
+        // Ctrl+R to regenerate
+        if (e.ctrlKey || e.metaKey) {
+          e.preventDefault();
+          setTalkingPointsGenerated(false);
+          generateTalkingPoints();
+        }
+        break;
+      case 'c':
+        // Ctrl+C to copy (when not selecting text)
+        if ((e.ctrlKey || e.metaKey) && talkingPointsResult) {
+          // Only copy if no text is selected
+          const selection = window.getSelection();
+          if (!selection || selection.toString().length === 0) {
+            e.preventDefault();
+            copyTalkingPoints();
+          }
+        }
+        break;
+    }
+  };
+
   return (
-    <div 
+    <div
       className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
       onKeyDown={handleKeyDown}
     >
@@ -310,6 +471,18 @@ export const SearchDialog: React.FC<SearchDialogProps> = ({ meetings, currentMee
           >
             <span className="mr-2">✨</span>
             AI Search
+            <span className="ml-2 text-xs text-gray-400">(Tab to switch)</span>
+          </button>
+          <button
+            onClick={() => setMode('talkingPoints')}
+            className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
+              mode === 'talkingPoints'
+                ? 'text-green-600 border-b-2 border-green-600 bg-green-50'
+                : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+            }`}
+          >
+            <span className="mr-2">💡</span>
+            Talking Points
             <span className="ml-2 text-xs text-gray-400">(Tab to switch)</span>
           </button>
         </div>
@@ -383,7 +556,7 @@ export const SearchDialog: React.FC<SearchDialogProps> = ({ meetings, currentMee
               </div>
             </div>
           </>
-        ) : (
+        ) : mode === 'ai' ? (
           /* AI Search Mode */
           <div className="flex flex-col flex-1 overflow-hidden">
             <div className="p-4">
@@ -504,16 +677,132 @@ export const SearchDialog: React.FC<SearchDialogProps> = ({ meetings, currentMee
               )}
             </div>
           </div>
+        ) : (
+          /* Talking Points Mode */
+          <div className="flex flex-col flex-1 overflow-hidden">
+            <div className="p-4 border-b">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-medium text-gray-800">
+                    {currentMeeting ? `Talking Points for: ${currentMeeting.title}` : 'Talking Points'}
+                  </h3>
+                  <p className="text-sm text-gray-500 mt-1">
+                    Auto-generated from your last 3 sessions
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => {
+                      setTalkingPointsGenerated(false);
+                      generateTalkingPoints();
+                    }}
+                    disabled={talkingPointsLoading || !currentMeeting}
+                    className={`px-3 py-1.5 text-sm rounded flex items-center gap-1 ${
+                      talkingPointsLoading || !currentMeeting
+                        ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                        : 'bg-green-100 text-green-700 hover:bg-green-200'
+                    }`}
+                    title="Regenerate (Ctrl+R)"
+                  >
+                    🔄 Regenerate
+                  </button>
+                  <button
+                    onClick={copyTalkingPoints}
+                    disabled={!talkingPointsResult}
+                    className={`px-3 py-1.5 text-sm rounded flex items-center gap-1 ${
+                      !talkingPointsResult
+                        ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                        : 'bg-green-600 text-white hover:bg-green-700'
+                    }`}
+                    title="Copy to clipboard"
+                  >
+                    📋 Copy
+                  </button>
+                </div>
+              </div>
+              <div className="mt-2 text-xs text-gray-500">
+                <span className="bg-gray-100 px-1.5 py-0.5 rounded">Ctrl+R</span> regenerate
+                <span className="bg-gray-100 px-1.5 py-0.5 rounded ml-2">Tab</span> switch mode
+                <span className="bg-gray-100 px-1.5 py-0.5 rounded ml-2">Esc</span> close
+              </div>
+            </div>
+
+            {/* Talking Points Results Area */}
+            <div className="flex-1 overflow-hidden">
+              {talkingPointsLoading && (
+                <div className="flex items-center justify-center h-full">
+                  <div className="text-center">
+                    <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-green-600 mx-auto mb-3"></div>
+                    <p className="text-gray-600">Generating talking points...</p>
+                    <p className="text-sm text-gray-400 mt-1">Analyzing your recent sessions</p>
+                  </div>
+                </div>
+              )}
+
+              {talkingPointsError && (
+                <div className="p-4">
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                    <div className="flex items-start">
+                      <span className="text-red-500 mr-2">⚠️</span>
+                      <div>
+                        <p className="text-red-800 font-medium">Error</p>
+                        <p className="text-red-600 text-sm mt-1">{talkingPointsError}</p>
+                        <button
+                          onClick={() => {
+                            setTalkingPointsGenerated(false);
+                            generateTalkingPoints();
+                          }}
+                          className="mt-2 text-sm text-green-600 hover:text-green-700 underline"
+                        >
+                          Try again
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {talkingPointsResult && (
+                <div
+                  ref={talkingPointsRef}
+                  tabIndex={0}
+                  className="h-full overflow-y-auto p-4 focus:outline-none focus:ring-2 focus:ring-green-200 focus:ring-inset"
+                >
+                  <div className="bg-green-50 rounded-lg p-4">
+                    <div className="flex items-center mb-3">
+                      <span className="mr-2">💡</span>
+                      <span className="font-medium text-green-800">Suggested Talking Points</span>
+                      <span className="ml-auto text-xs text-gray-500">
+                        {new Date(talkingPointsResult.timestamp).toLocaleTimeString()}
+                      </span>
+                    </div>
+                    <div className="prose prose-sm max-w-none text-gray-800 whitespace-pre-wrap">
+                      {talkingPointsResult.response}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {!talkingPointsLoading && !talkingPointsError && !talkingPointsResult && !currentMeeting && (
+                <div className="flex items-center justify-center h-full text-gray-400">
+                  <div className="text-center">
+                    <span className="text-4xl mb-3 block">💡</span>
+                    <p>Select a meeting first to generate talking points</p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
         )}
 
         {/* Footer with keyboard hints */}
         <div className="px-4 py-2 border-t bg-gray-50 text-xs text-gray-500 flex justify-between items-center">
           <span>
-            {mode === 'basic' 
+            {mode === 'basic'
               ? `${matchingMeetings.length} matching meetings`
-              : currentMeeting 
-                ? `AI context: ${currentMeeting.title}`
-                : 'No meeting selected for AI'
+              : mode === 'ai'
+                ? (currentMeeting ? `AI context: ${currentMeeting.title}` : 'No meeting selected for AI')
+                : (currentMeeting ? `Talking points for: ${currentMeeting.title}` : 'No meeting selected')
             }
           </span>
           <span>Press <span className="bg-gray-200 px-1 rounded">Esc</span> to close</span>
