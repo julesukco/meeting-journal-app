@@ -20,9 +20,15 @@ export function MeetingListScreen() {
     setMeetings(storedMeetings);
   };
 
-  const handleMeetingSelect = (meeting: Meeting) => {
+  const handleMeetingSelect = (
+    meeting: Meeting,
+    _matchIndex?: number,
+    _match?: { start: number; end: number },
+    _searchTerm?: string
+  ) => {
     setShowSearch(false);
     setSelectedMeeting(meeting);
+    // TODO: Could pass search selection to the meeting page via state if needed
     navigate(`/meeting/${meeting.id}`);
   };
 
@@ -98,8 +104,10 @@ export function MeetingListScreen() {
         {showSearch && (
           <SearchDialog
             meetings={meetings}
+            currentMeeting={selectedMeeting}
             onSelect={handleMeetingSelect}
             onClose={() => setShowSearch(false)}
+            onOpenAIConfig={() => {}}
           />
         )}
       </div>

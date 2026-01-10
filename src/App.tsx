@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { Meeting, ActionItem, VirtualDuplicate } from './types';
 import { MeetingList } from './components/MeetingList';
 import { Editor } from './components/Editor';
@@ -7,11 +7,53 @@ import { ActionItems } from './components/ActionItems';
 import { exportMeetings, importMeetings, getMeetings, saveMeetings } from './services/storage';
 import { RightNav } from './components/RightNav';
 import { SearchDialog } from './components/SearchDialog';
+import { AIConfigDialog } from './components/AIConfigDialog';
 import { MeetingListScreen } from './screens/MeetingListScreen';
 import { MeetingView } from './components/MeetingView';
 
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { get, set } from 'idb-keyval';
+
+// Wrapper component for SearchDialog that handles navigation
+interface SearchDialogWrapperProps {
+  meetings: Meeting[];
+  currentMeeting: Meeting | null;
+  onSelect: (meeting: Meeting, matchIndex?: number, match?: { start: number; end: number }, searchTerm?: string) => void;
+  onClose: () => void;
+  onOpenAIConfig: () => void;
+}
+
+const SearchDialogWrapper: React.FC<SearchDialogWrapperProps> = ({
+  meetings,
+  currentMeeting,
+  onSelect,
+  onClose,
+  onOpenAIConfig,
+}) => {
+  const navigate = useNavigate();
+
+  const handleSelect = useCallback((
+    meeting: Meeting,
+    matchIndex?: number,
+    match?: { start: number; end: number },
+    searchTerm?: string
+  ) => {
+    // Call the original onSelect handler
+    onSelect(meeting, matchIndex, match, searchTerm);
+    // Navigate to the selected meeting
+    navigate(`/meeting/${meeting.id}`);
+  }, [onSelect, navigate]);
+
+  return (
+    <SearchDialog
+      meetings={meetings}
+      currentMeeting={currentMeeting}
+      onSelect={handleSelect}
+      onClose={onClose}
+      onOpenAIConfig={onOpenAIConfig}
+    />
+  );
+};
 
 function App() {
   const [meetings, setMeetings] = useState<Meeting[]>([]);
@@ -53,7 +95,9 @@ function App() {
   }, []);
 
   const [showSearch, setShowSearch] = useState(false);
+  const [showAIConfig, setShowAIConfig] = useState(false);
   const [lastSaveTime, setLastSaveTime] = useState<number>(0);
+  const [searchSelection, setSearchSelection] = useState<{ start: number; end: number; searchTerm?: string } | null>(null);
 
   // Debounced save function
   const debouncedSave = useCallback((meetingToSave: Meeting) => {
@@ -264,6 +308,13 @@ function App() {
   // Global keyboard shortcut handler
   useEffect(() => {
     const handleKeyPress = (e: KeyboardEvent) => {
+      // Ctrl+, to open AI config from anywhere
+      if (e.key === ',' && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        setShowAIConfig(true);
+        return;
+      }
+
       // Check if we're not in an input or textarea
       const target = e.target as HTMLElement;
       if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') {
@@ -298,8 +349,22 @@ function App() {
   }, [selectedMeeting]);
 
   // Function to handle meeting selection (works with both real and virtual meetings)
-  const handleMeetingSelect = useCallback((meeting: Meeting & { isVirtual?: boolean; virtualId?: string; originalMeetingId?: string }) => {
+  const handleMeetingSelect = useCallback((
+    meeting: Meeting & { isVirtual?: boolean; virtualId?: string; originalMeetingId?: string },
+    matchIndex?: number,
+    match?: { start: number; end: number },
+    searchTerm?: string
+  ) => {
     setShowSearch(false);
+    
+    // Store the search selection if provided (for cursor positioning)
+    // Only SET it when match is provided, don't clear it otherwise
+    // (MeetingView's URL sync effect calls this without match, we don't want to clear existing selection)
+    if (match) {
+      console.log('handleMeetingSelect: Setting searchSelection:', { ...match, searchTerm });
+      setSearchSelection({ ...match, searchTerm });
+    }
+    // Note: searchSelection is cleared by onSearchSelectionUsed callback after it's applied
     
     if (meeting.isVirtual) {
       // For virtual meetings, find and select the original meeting
@@ -552,16 +617,27 @@ function App() {
               removeVirtualDuplicate={removeVirtualDuplicate}
               updateVirtualDuplicateGroup={updateVirtualDuplicateGroup}
               handleItemReorder={handleItemReorder}
+              searchSelection={searchSelection}
+              onSearchSelectionUsed={() => setSearchSelection(null)}
             />
           }
         />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       {showSearch && (
-        <SearchDialog
+        <SearchDialogWrapper
           meetings={meetings}
+          currentMeeting={selectedMeeting}
           onSelect={handleMeetingSelect}
           onClose={() => setShowSearch(false)}
+          onOpenAIConfig={() => {
+            setShowAIConfig(true);
+          }}
+        />
+      )}
+      {showAIConfig && (
+        <AIConfigDialog
+          onClose={() => setShowAIConfig(false)}
         />
       )}
     </Router>

@@ -33,3 +33,12 @@ export interface ActionItem {
   createdAt: string;
   completedAt?: string;
 }
+
+export interface AIConfig {
+  systemPrompt: string;
+}
+
+export interface AISearchResult {
+  response: string;
+  timestamp: number;
+}

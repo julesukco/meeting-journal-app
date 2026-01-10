@@ -25,6 +25,8 @@ interface EditorProps {
   meeting: Meeting | null;
   onUpdateMeeting: (meeting: Meeting) => void;
   processCompletedItems: (content: string) => string;
+  searchSelection?: { start: number; end: number; searchTerm?: string } | null;
+  onSearchSelectionUsed?: () => void;
 }
 
 // Minimal custom extension for task list tab/shift+tab indentation
@@ -108,6 +110,8 @@ const Editor: React.FC<EditorProps> = ({
   meeting, 
   onUpdateMeeting,
   processCompletedItems,
+  searchSelection,
+  onSearchSelectionUsed,
 }) => {
   const [editorReady, setEditorReady] = useState(false);
   const editorRef = useRef<HTMLDivElement>(null);
@@ -306,22 +310,260 @@ const Editor: React.FC<EditorProps> = ({
     };
   }, []);
 
+  // Track if we've applied the current search selection to prevent double-application
+  const appliedSearchRef = useRef<string | null>(null);
+  
+  // Keep a ref to the latest searchSelection to avoid stale closure issues
+  const searchSelectionRef = useRef(searchSelection);
+  useEffect(() => {
+    console.log('Editor: searchSelection prop changed:', searchSelection);
+    searchSelectionRef.current = searchSelection;
+  }, [searchSelection]);
+  
+  // Debug: Log when Editor receives new props
+  useEffect(() => {
+    console.log('Editor mounted/updated with searchSelection:', searchSelection);
+  });
+
+  // Helper function to find and select search term in the editor
+  const applySearchSelection = useCallback((selection: { start: number; end: number; searchTerm?: string }) => {
+    if (!editor || !selection.searchTerm) {
+      return false;
+    }
+
+    // Create a unique key for this search selection
+    const selectionKey = `${selection.searchTerm}-${selection.start}`;
+    
+    // Skip if we've already applied this exact selection
+    if (appliedSearchRef.current === selectionKey) {
+      return true;
+    }
+
+    const searchTerm = selection.searchTerm;
+    console.log('Applying search selection for:', searchTerm);
+
+    try {
+      const searchTermLower = searchTerm.toLowerCase();
+      let foundFrom = -1;
+      let foundTo = -1;
+      let currentTextOffset = 0;
+      const targetOffset = selection.start;
+      
+      // Walk through the document to find text nodes
+      editor.state.doc.descendants((node, pos) => {
+        if (foundFrom !== -1) return false; // Already found, stop walking
+        
+        if (node.isText && node.text) {
+          const nodeText = node.text;
+          const nodeLower = nodeText.toLowerCase();
+          
+          // Check if search term is in this node
+          let idx = 0;
+          while ((idx = nodeLower.indexOf(searchTermLower, idx)) !== -1) {
+            const absoluteTextPos = currentTextOffset + idx;
+            // Use the first match, or one close to the target offset
+            if (foundFrom === -1 || Math.abs(absoluteTextPos - targetOffset) < Math.abs(currentTextOffset - targetOffset)) {
+              foundFrom = pos + idx;
+              foundTo = foundFrom + searchTerm.length;
+              // If this is close to our target, use it
+              if (Math.abs(absoluteTextPos - targetOffset) < 100) {
+                return false; // Stop walking
+              }
+            }
+            idx++;
+          }
+          currentTextOffset += nodeText.length;
+        }
+        return true; // Continue walking
+      });
+      
+      if (foundFrom !== -1 && foundTo !== -1) {
+        // Mark this selection as applied
+        appliedSearchRef.current = selectionKey;
+        
+        // Set selection
+        editor.chain()
+          .focus()
+          .setTextSelection({ from: foundFrom, to: foundTo })
+          .run();
+        
+        // Scroll to center the selection after a brief delay for DOM update
+        setTimeout(() => {
+          const selection = window.getSelection();
+          if (selection && selection.rangeCount > 0) {
+            const range = selection.getRangeAt(0);
+            // Get the parent element of the text node
+            const startContainer = range.startContainer;
+            const element = startContainer.nodeType === Node.TEXT_NODE
+              ? startContainer.parentElement
+              : startContainer as Element;
+
+            if (element && element instanceof HTMLElement) {
+              element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+          }
+        }, 100);
+          
+        console.log('Search selection applied:', { from: foundFrom, to: foundTo, searchTerm });
+        return true;
+      } else {
+        console.log('Search term not found in document:', searchTerm);
+        editor.commands.focus();
+        return false;
+      }
+    } catch (error) {
+      console.error('Error applying search selection:', error);
+      editor.commands.focus();
+      return false;
+    }
+  }, [editor]);
+
+  // Track which meeting we last loaded content for
+  const lastLoadedMeetingRef = useRef<string | null>(null);
+  
   // Only set content when the meeting changes (not on every update)
   useEffect(() => {
     if (editor && meeting) {
-      editor.commands.setContent(processCompletedItems(meeting.content));
-      // Position cursor at the end and scroll to bottom
-      editor.commands.focus('end');
-      const editorElement = document.querySelector('.ProseMirror');
-      if (editorElement) {
-        editorElement.scrollTop = editorElement.scrollHeight;
+      // Check if this is actually a different meeting
+      const isDifferentMeeting = lastLoadedMeetingRef.current !== meeting.id;
+      console.log('Content loading effect: meeting', meeting.id, 'isDifferent:', isDifferentMeeting, 'searchSelectionRef:', searchSelectionRef.current);
+      
+      // Only reset applied ref if meeting actually changed
+      if (isDifferentMeeting) {
+        appliedSearchRef.current = null;
+        lastLoadedMeetingRef.current = meeting.id;
       }
+      
+      editor.commands.setContent(processCompletedItems(meeting.content));
+      
+      // After content is loaded, either apply search selection or scroll to end
+      // Use setTimeout to ensure DOM is updated
+      // Use the ref to get the LATEST searchSelection value (avoids stale closure)
+      const timeoutId = setTimeout(() => {
+        const currentSearchSelection = searchSelectionRef.current;
+        console.log('Content load timeout: checking searchSelection:', currentSearchSelection, 'appliedRef:', appliedSearchRef.current);
+        
+        // If a selection was already applied (by backup effect), don't do anything
+        if (appliedSearchRef.current) {
+          console.log('Selection already applied by backup effect, skipping');
+          return;
+        }
+        
+        if (currentSearchSelection && currentSearchSelection.searchTerm) {
+          const applied = applySearchSelection(currentSearchSelection);
+          if (applied && onSearchSelectionUsed) {
+            onSearchSelectionUsed();
+          }
+        } else {
+          console.log('No search selection found, positioning on new line after last content');
+          
+          // Find the last block node (paragraph, heading, etc.) that has actual text content
+          const doc = editor.state.doc;
+          let lastContentBlockEnd = 1; // Default to start
+          
+          // Walk through all nodes to find the last one with content
+          doc.descendants((node, pos) => {
+            // Check if this is a block node with text content
+            if (node.isBlock && node.textContent && node.textContent.trim().length > 0) {
+              // Record the position at the END of this block
+              lastContentBlockEnd = pos + node.nodeSize;
+            }
+            return true; // Continue walking to find the very last one
+          });
+          
+          // The position after the last content block should be the start of the next line
+          // We need to add 1 to get inside the next paragraph
+          const targetPos = Math.min(lastContentBlockEnd + 1, doc.content.size);
+          
+          console.log('Last content ends at:', lastContentBlockEnd, 'targeting pos:', targetPos, 'doc size:', doc.content.size);
+          
+          // Set cursor at the target position
+          try {
+            editor.commands.setTextSelection(targetPos);
+            editor.commands.focus();
+          } catch (e) {
+            console.log('Failed to set position, falling back to end:', e);
+            // Fallback to end if position is invalid
+            editor.commands.focus('end');
+          }
+          
+          // Scroll to show the cursor position
+          const editorElement = document.querySelector('.ProseMirror');
+          if (editorElement) {
+            // Small delay to let the cursor position update
+            setTimeout(() => {
+              const selection = window.getSelection();
+              if (selection && selection.rangeCount > 0) {
+                const range = selection.getRangeAt(0);
+                const rect = range.getBoundingClientRect();
+                const editorRect = editorElement.getBoundingClientRect();
+                const scrollContainer = editorElement.parentElement;
+                
+                if (scrollContainer && rect.top > 0) {
+                  // Scroll so cursor is visible near bottom but with some margin
+                  const targetScrollTop = scrollContainer.scrollTop + (rect.top - editorRect.top) - (scrollContainer.clientHeight - 100);
+                  scrollContainer.scrollTo({
+                    top: Math.max(0, targetScrollTop),
+                    behavior: 'smooth'
+                  });
+                }
+              }
+            }, 50);
+          }
+        }
+      }, 250);
+      
+      // Cleanup: cancel timeout if effect re-runs
+      return () => {
+        clearTimeout(timeoutId);
+      };
     } else if (editor && !meeting) {
       editor.commands.setContent('');
+      return undefined;
     }
+    return undefined;
     // Only run when meeting id changes
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editor, meeting?.id]);
+
+  // Backup effect: Watch for searchSelection changes directly
+  // This handles cases where searchSelection is set after content is already loaded (same meeting search)
+  // We use a ref to track the last meeting id to detect when we're navigating vs. same-meeting search
+  const lastMeetingIdRef = useRef<string | null>(null);
+  
+  useEffect(() => {
+    if (!editor || !searchSelection || !searchSelection.searchTerm || !meeting) {
+      return;
+    }
+    
+    // Check if we've already applied this selection
+    const selectionKey = `${searchSelection.searchTerm}-${searchSelection.start}`;
+    if (appliedSearchRef.current === selectionKey) {
+      console.log('Backup effect: Already applied, skipping');
+      return;
+    }
+    
+    // Check if meeting changed - if so, let the content loading effect handle it
+    const isSameMeeting = lastMeetingIdRef.current === meeting.id;
+    lastMeetingIdRef.current = meeting.id;
+    
+    if (!isSameMeeting) {
+      console.log('Backup effect: Meeting changed, deferring to content loading effect');
+      return; // Content loading effect will handle it
+    }
+    
+    console.log('Backup effect: Same meeting search, applying:', searchSelection.searchTerm);
+    
+    // Apply the selection with a delay to ensure content is ready
+    const timer = setTimeout(() => {
+      const applied = applySearchSelection(searchSelection);
+      if (applied && onSearchSelectionUsed) {
+        onSearchSelectionUsed();
+      }
+    }, 100);
+    
+    return () => clearTimeout(timer);
+  }, [editor, searchSelection, meeting, applySearchSelection, onSearchSelectionUsed]);
 
   // Add keyboard shortcut for task list and font size
   useEffect(() => {
@@ -680,6 +922,12 @@ const Editor: React.FC<EditorProps> = ({
                   label="Delete Column"
                   icon={<span>-Col</span>}
                   title="Delete Column (Cmd/Ctrl + Shift + C)"
+                />
+                <ToolbarButton
+                  onClick={() => editor?.chain().focus().deleteTable().run()}
+                  label="Delete Table"
+                  icon={<span>⊗ Table</span>}
+                  title="Delete Table"
                 />
               </>
             )}
