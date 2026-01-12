@@ -558,7 +558,7 @@ export const SearchDialog: React.FC<SearchDialogProps> = ({ meetings, currentMee
           </>
         ) : mode === 'ai' ? (
           /* AI Search Mode */
-          <div className="flex flex-col flex-1 overflow-hidden">
+          <div className="flex flex-col flex-1 overflow-hidden min-h-0">
             <div className="p-4">
               <div className="relative">
                 <textarea
@@ -601,7 +601,11 @@ export const SearchDialog: React.FC<SearchDialogProps> = ({ meetings, currentMee
             </div>
 
             {/* AI Results Area */}
-            <div className="flex-1 overflow-hidden border-t">
+            <div
+              ref={resultRef}
+              tabIndex={0}
+              className="flex-1 min-h-0 border-t overflow-y-auto focus:outline-none focus:ring-2 focus:ring-purple-200 focus:ring-inset"
+            >
               {aiLoading && (
                 <div className="flex items-center justify-center h-full">
                   <div className="text-center">
@@ -635,11 +639,7 @@ export const SearchDialog: React.FC<SearchDialogProps> = ({ meetings, currentMee
               )}
 
               {aiResult && (
-                <div 
-                  ref={resultRef}
-                  tabIndex={0}
-                  className="h-full overflow-y-auto p-4 focus:outline-none focus:ring-2 focus:ring-purple-200 focus:ring-inset"
-                >
+                <div className="p-4">
                   <div className="bg-purple-50 rounded-lg p-4">
                     <div className="flex items-center mb-3">
                       <span className="mr-2">✨</span>
@@ -679,7 +679,7 @@ export const SearchDialog: React.FC<SearchDialogProps> = ({ meetings, currentMee
           </div>
         ) : (
           /* Talking Points Mode */
-          <div className="flex flex-col flex-1 overflow-hidden">
+          <div className="flex flex-col flex-1 overflow-hidden min-h-0">
             <div className="p-4 border-b">
               <div className="flex items-center justify-between">
                 <div>
@@ -728,7 +728,11 @@ export const SearchDialog: React.FC<SearchDialogProps> = ({ meetings, currentMee
             </div>
 
             {/* Talking Points Results Area */}
-            <div className="flex-1 overflow-hidden">
+            <div
+              ref={talkingPointsRef}
+              tabIndex={0}
+              className="flex-1 min-h-0 overflow-y-auto focus:outline-none focus:ring-2 focus:ring-green-200 focus:ring-inset"
+            >
               {talkingPointsLoading && (
                 <div className="flex items-center justify-center h-full">
                   <div className="text-center">
@@ -763,11 +767,7 @@ export const SearchDialog: React.FC<SearchDialogProps> = ({ meetings, currentMee
               )}
 
               {talkingPointsResult && (
-                <div
-                  ref={talkingPointsRef}
-                  tabIndex={0}
-                  className="h-full overflow-y-auto p-4 focus:outline-none focus:ring-2 focus:ring-green-200 focus:ring-inset"
-                >
+                <div className="p-4">
                   <div className="bg-green-50 rounded-lg p-4">
                     <div className="flex items-center mb-3">
                       <span className="mr-2">💡</span>
