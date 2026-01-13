@@ -42,3 +42,15 @@ export interface AISearchResult {
   response: string;
   timestamp: number;
 }
+
+export interface MemoryBankConfig {
+  meetingId: string | null;      // ID of the Memory Bank meeting
+  lastUpdateTimestamp: number;   // Last successful update time
+  updateHistory: UpdateEntry[];  // History of updates
+}
+
+export interface UpdateEntry {
+  timestamp: number;
+  sessionsProcessed: number;
+  summary: string;  // Brief description of what was added
+}

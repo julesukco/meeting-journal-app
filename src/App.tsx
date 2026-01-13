@@ -1,18 +1,20 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
-import { Meeting, ActionItem, VirtualDuplicate } from './types';
+import { Meeting, ActionItem, VirtualDuplicate, MemoryBankConfig } from './types';
 import { MeetingList } from './components/MeetingList';
 import { Editor } from './components/Editor';
 import { ActionItems } from './components/ActionItems';
-import { exportMeetings, importMeetings, getMeetings, saveMeetings } from './services/storage';
+import { exportMeetings, importMeetings, getMeetings, saveMeetings, getMemoryBankConfig, saveMemoryBankConfig } from './services/storage';
 import { RightNav } from './components/RightNav';
 import { SearchDialog } from './components/SearchDialog';
 import { AIConfigDialog } from './components/AIConfigDialog';
+import { MemoryBankDialog } from './components/MemoryBankDialog';
 import { MeetingListScreen } from './screens/MeetingListScreen';
 import { MeetingView } from './components/MeetingView';
 
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { get, set } from 'idb-keyval';
+import { marked } from 'marked';
 
 // Wrapper component for SearchDialog that handles navigation
 interface SearchDialogWrapperProps {
@@ -86,16 +88,26 @@ function App() {
         // Load recent meetings from IndexedDB
         const storedRecentMeetings = await get('recentMeetings') || [];
         setRecentMeetings(storedRecentMeetings);
+
+        // Load Memory Bank config from IndexedDB
+        const storedMemoryBankConfig = await getMemoryBankConfig();
+        setMemoryBankConfig(storedMemoryBankConfig);
       } catch (error) {
         console.error('Error loading data from IndexedDB:', error);
       }
     };
-    
+
     loadData();
   }, []);
 
   const [showSearch, setShowSearch] = useState(false);
   const [showAIConfig, setShowAIConfig] = useState(false);
+  const [showMemoryBankDialog, setShowMemoryBankDialog] = useState(false);
+  const [memoryBankConfig, setMemoryBankConfig] = useState<MemoryBankConfig>({
+    meetingId: null,
+    lastUpdateTimestamp: 0,
+    updateHistory: []
+  });
   const [lastSaveTime, setLastSaveTime] = useState<number>(0);
   const [searchSelection, setSearchSelection] = useState<{ start: number; end: number; searchTerm?: string } | null>(null);
 
@@ -611,8 +623,8 @@ function App() {
   const handleArchiveMeeting = async (meetingId: string, isArchived: boolean) => {
     try {
       // Update the meeting in the state
-      setMeetings(prev => prev.map(meeting => 
-        meeting.id === meetingId 
+      setMeetings(prev => prev.map(meeting =>
+        meeting.id === meetingId
           ? { ...meeting, isArchived, updatedAt: Date.now() }
           : meeting
       ));
@@ -624,8 +636,8 @@ function App() {
 
       // Save to IndexedDB
       const updatedMeetings = await getMeetings();
-      const newMeetings = updatedMeetings.map(meeting => 
-        meeting.id === meetingId 
+      const newMeetings = updatedMeetings.map(meeting =>
+        meeting.id === meetingId
           ? { ...meeting, isArchived, updatedAt: Date.now() }
           : meeting
       );
@@ -635,6 +647,120 @@ function App() {
       alert('Failed to archive meeting');
     }
   };
+
+  // Memory Bank: Get the memory bank meeting
+  const memoryBankMeeting = useMemo(() => {
+    if (!memoryBankConfig.meetingId) return null;
+    return meetings.find(m => m.id === memoryBankConfig.meetingId) || null;
+  }, [meetings, memoryBankConfig.meetingId]);
+
+  // Memory Bank: Create a new Memory Bank meeting
+  const handleCreateMemoryBank = useCallback(async () => {
+    const now = Date.now();
+    const memoryBankContent = `<h1>Memory Bank</h1>
+<p><em>Last updated: Never</em></p>
+
+<h2>Decisions Made</h2>
+<p></p>
+
+<h2>Strategic Goals</h2>
+<p></p>
+
+<h2>People Insights</h2>
+<p></p>
+
+<h2>Key Data Points</h2>
+<p></p>
+
+<h2>Open Questions</h2>
+<p></p>
+
+<hr>
+<h3>Update History</h3>
+<ul></ul>`;
+
+    const newMeeting: Meeting = {
+      id: now.toString(),
+      title: 'Memory Bank',
+      date: new Date().toLocaleDateString(),
+      content: memoryBankContent,
+      notes: '',
+      attendees: [],
+      nextTimeNotes: '',
+      createdAt: now,
+      updatedAt: now
+    };
+
+    // Add the meeting
+    setMeetings(prev => [...prev, newMeeting]);
+
+    // Update Memory Bank config
+    const newConfig: MemoryBankConfig = {
+      meetingId: newMeeting.id,
+      lastUpdateTimestamp: 0,
+      updateHistory: []
+    };
+    setMemoryBankConfig(newConfig);
+    await saveMemoryBankConfig(newConfig);
+  }, []);
+
+  // Memory Bank: Update the Memory Bank meeting with new content
+  const handleUpdateMemoryBank = useCallback(async (newContent: string, sessionsProcessed: number) => {
+    if (!memoryBankConfig.meetingId) return;
+
+    const now = Date.now();
+    const formattedDate = new Date(now).toLocaleString();
+
+    // Convert markdown content to HTML for the editor
+    const contentAsHtml = marked.parse(newContent) as string;
+
+    // Build the new Memory Bank content with update timestamp
+    const updatedContent = `<h1>Memory Bank</h1>
+<p><em>Last updated: ${formattedDate}</em></p>
+
+${contentAsHtml}
+
+<hr>
+<h3>Update History</h3>
+<ul>
+<li>${formattedDate} - Processed ${sessionsProcessed} session${sessionsProcessed !== 1 ? 's' : ''}</li>
+${memoryBankConfig.updateHistory.map(entry =>
+  `<li>${new Date(entry.timestamp).toLocaleString()} - ${entry.summary}</li>`
+).join('\n')}
+</ul>`;
+
+    // Update the meeting
+    setMeetings(prev => prev.map(m =>
+      m.id === memoryBankConfig.meetingId
+        ? { ...m, content: updatedContent, updatedAt: now }
+        : m
+    ));
+
+    // Update config
+    const newConfig: MemoryBankConfig = {
+      meetingId: memoryBankConfig.meetingId,
+      lastUpdateTimestamp: now,
+      updateHistory: [
+        {
+          timestamp: now,
+          sessionsProcessed,
+          summary: `Processed ${sessionsProcessed} session${sessionsProcessed !== 1 ? 's' : ''}`
+        },
+        ...memoryBankConfig.updateHistory.slice(0, 9) // Keep last 10 entries
+      ]
+    };
+    setMemoryBankConfig(newConfig);
+    await saveMemoryBankConfig(newConfig);
+
+    // Also save the updated meeting to IndexedDB
+    const currentMeetings = await getMeetings();
+    const updatedMeetings = currentMeetings.map(m =>
+      m.id === memoryBankConfig.meetingId
+        ? { ...m, content: updatedContent, updatedAt: now }
+        : m
+    );
+    await saveMeetings(updatedMeetings);
+  }, [memoryBankConfig]);
 
   return (
     <Router>
@@ -664,6 +790,7 @@ function App() {
               handleBatchItemReorder={handleBatchItemReorder}
               searchSelection={searchSelection}
               onSearchSelectionUsed={() => setSearchSelection(null)}
+              onOpenMemoryBank={() => setShowMemoryBankDialog(true)}
             />
           }
         />
@@ -683,6 +810,16 @@ function App() {
       {showAIConfig && (
         <AIConfigDialog
           onClose={() => setShowAIConfig(false)}
+        />
+      )}
+      {showMemoryBankDialog && (
+        <MemoryBankDialog
+          meetings={meetings}
+          memoryBankMeeting={memoryBankMeeting}
+          memoryBankConfig={memoryBankConfig}
+          onClose={() => setShowMemoryBankDialog(false)}
+          onCreateMemoryBank={handleCreateMemoryBank}
+          onUpdateMemoryBank={handleUpdateMemoryBank}
         />
       )}
     </Router>

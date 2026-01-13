@@ -1,11 +1,12 @@
 import { get, set, del } from 'idb-keyval';
-import { ActionItem } from '../types';
+import { ActionItem, MemoryBankConfig } from '../types';
 
 // Remove the AsyncStorage import and use localStorage instead
 const STORAGE_KEYS = {
   MEETINGS: 'meetings',
   REMINDERS: 'reminders',
   GROUPS: 'meetingGroups',
+  MEMORY_BANK_CONFIG: 'memoryBankConfig',
 };
 
 export interface Meeting {
@@ -82,6 +83,26 @@ export const saveGroups = async (groups: string[]): Promise<void> => {
 export const getGroups = async (): Promise<string[]> => {
   const groups = await get(STORAGE_KEYS.GROUPS);
   return groups ? groups : [];
+};
+
+// Get Memory Bank config
+export const getMemoryBankConfig = async (): Promise<MemoryBankConfig> => {
+  const config = await get(STORAGE_KEYS.MEMORY_BANK_CONFIG);
+  return config ? config : {
+    meetingId: null,
+    lastUpdateTimestamp: 0,
+    updateHistory: []
+  };
+};
+
+// Save Memory Bank config
+export const saveMemoryBankConfig = async (config: MemoryBankConfig): Promise<void> => {
+  try {
+    await set(STORAGE_KEYS.MEMORY_BANK_CONFIG, config);
+  } catch (error) {
+    console.error('Error saving Memory Bank config:', error);
+    throw error;
+  }
 };
 
 // Add a single meeting

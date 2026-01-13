@@ -4,7 +4,7 @@ import { ActionItems } from './ActionItems';
 import { Reminders, RemindersHandle } from './Reminders';
 import { SummaryDialog } from './SummaryDialog';
 import { getReminders, Reminder, getMeetings, optimizeDatabase } from '../services/storage';
-import { ChevronDown, ChevronRight, RefreshCw, BarChart3, Archive, ArchiveRestore } from 'lucide-react';
+import { ChevronDown, ChevronRight, RefreshCw, BarChart3, Archive, ArchiveRestore, Brain } from 'lucide-react';
 
 interface RightNavProps {
   actionItems: ActionItem[];
@@ -18,6 +18,7 @@ interface RightNavProps {
     isArchived?: boolean;
   } | null;
   onArchiveMeeting?: (meetingId: string, isArchived: boolean) => void;
+  onOpenMemoryBank?: () => void;
   lastSaveTime?: number;
 }
 
@@ -35,6 +36,7 @@ export const RightNav: React.FC<RightNavProps> = ({
   onImport,
   selectedMeeting,
   onArchiveMeeting,
+  onOpenMemoryBank,
   lastSaveTime,
 }) => {
   const REMINDERS_KEY = 'reminders';
@@ -376,6 +378,17 @@ export const RightNav: React.FC<RightNavProps> = ({
           {isOptimizing ? 'Optimizing...' : 'Optimize Database'}
         </button>
         
+        {/* Memory Bank button */}
+        {onOpenMemoryBank && (
+          <button
+            onClick={onOpenMemoryBank}
+            className="w-full px-4 py-2 bg-purple-600 text-white rounded-lg shadow-lg hover:bg-purple-700 transition-colors flex items-center justify-center"
+          >
+            <Brain className="w-5 h-5 mr-2" />
+            Memory Bank
+          </button>
+        )}
+
         {/* Summarize button - full width */}
         <button
           onClick={() => setShowSummaryDialog(true)}
