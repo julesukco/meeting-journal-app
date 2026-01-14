@@ -4,6 +4,18 @@
 
 A React-based desktop-class web application for creating, organizing, and managing meeting notes with a rich text editor. Key features include automatic action item extraction (using "AI:" prefix pattern), virtual meeting duplicates for multi-group organization, next-time notes for meeting preparation, and a three-panel workspace with drag-and-drop organization. All data is stored locally in IndexedDB for offline-first operation.
 
+## Usage
+
+Each meeting has an entry that appears in the left navigation. When click the meeting notes are displayed. The meetings are typically recurring meetings. Each session of the meeting is notated with a date delimiter, followed by the highlights from the meeting. The most recent meetings are stored at the end of the note. Images can be embedded in the note. Here's an example meeting note:
+
+12/15/25
+- some note here
+- important decision
+
+1/4/26
+- more details from the next meeting
+
+
 ## Core Architecture
 
 **Stack:**
@@ -20,6 +32,7 @@ A React-based desktop-class web application for creating, organizing, and managi
 - Auto-save with 500ms debouncing
 - Offline-first design (no server communication)
 - Client-side only (all data local)
+- Functionality that uses AI is performed via an AI API call
 
 ## Project Structure
 
